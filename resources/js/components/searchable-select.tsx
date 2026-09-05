@@ -90,6 +90,24 @@ export function SearchableSelect({
         setQuery('');
     };
 
+    // The open state repaints the border, and the caller's field style supplies
+    // one as the `border` shorthand. Mixing the two on one element is what React
+    // warns about ("Updating a style property during rerender… when a
+    // conflicting property is set"), so the incoming border is pulled out here
+    // and a single resolved shorthand is written back.
+    const {
+        border: fieldBorder,
+        borderColor: fieldBorderColor,
+        ...fieldStyle
+    } = style ?? {};
+
+    const controlBorder = open
+        ? `1px solid ${C.primary}`
+        : (fieldBorder ??
+          (fieldBorderColor !== undefined
+              ? `1px solid ${fieldBorderColor}`
+              : `1px solid ${C.border}`));
+
     return (
         <div ref={boxRef} style={{ position: 'relative', width: '100%' }}>
             <button
@@ -99,7 +117,6 @@ export function SearchableSelect({
                 style={{
                     width: '100%',
                     height: 42,
-                    border: `1px solid ${C.border}`,
                     borderRadius: 8,
                     background: disabled ? '#F1F5F9' : '#fff',
                     fontSize: 13.5,
@@ -108,10 +125,10 @@ export function SearchableSelect({
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    // The caller's field style (border, height, error state) is
-                    // applied to the control itself, not a wrapper, so it never
-                    // double-borders. Padding/color/open-border are forced last.
-                    ...style,
+                    // The caller's field style (height, error state) is applied
+                    // to the control itself, not a wrapper, so it never
+                    // double-borders. Padding/color/border are forced last.
+                    ...fieldStyle,
                     position: 'relative',
                     paddingTop: 0,
                     paddingBottom: 0,
@@ -121,7 +138,7 @@ export function SearchableSelect({
                         selected.length > 0
                             ? ((style?.color as string | undefined) ?? C.text)
                             : C.faint,
-                    ...(open ? { borderColor: C.primary } : {}),
+                    border: controlBorder,
                 }}
             >
                 {multiple
