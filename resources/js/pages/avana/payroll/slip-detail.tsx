@@ -135,9 +135,9 @@ export function SlipDetail({ slip, period, employees = [] }: SlipDetailProps) {
                             marginTop: 6,
                         }}
                     >
-                        Dihitung live dari konfigurasi saat ini — belum
-                        tersimpan; hasil run bisa berbeda jika konfigurasi
-                        berubah.
+                        {slip.source === 'import'
+                            ? 'Diambil dari berkas payroll yang diunggah untuk periode ini — bukan hasil perhitungan sistem.'
+                            : 'Dihitung live dari konfigurasi saat ini — belum tersimpan; hasil run bisa berbeda jika konfigurasi berubah.'}
                     </div>
                 </div>
             )}

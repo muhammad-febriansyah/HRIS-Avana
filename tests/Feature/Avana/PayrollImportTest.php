@@ -7,6 +7,7 @@ use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
+use App\Models\SalaryMaster;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BasicWageComponent;
@@ -60,6 +61,10 @@ it('writes the uploaded numbers into the period run', function (): void {
     expect((float) $item->pph21_total)->toBe(300_000.0);
     // Take-home left blank: bruto − potongan − BPJS karyawan − PPh 21.
     expect((float) $item->net_salary)->toBe(9_050_000.0);
+    // The same invariant a computed item holds, so every screen and export
+    // that subtracts total_deduction from the bruto lands on the netto.
+    expect((float) $item->total_deduction)->toBe(950_000.0);
+    expect((float) $item->gross_salary - (float) $item->total_deduction)->toBe((float) $item->net_salary);
     expect($item->calculation_snapshot['source'])->toBe('import');
 
     $run = PayrollRun::where('payroll_period_id', $this->period->id)->firstOrFail();
@@ -175,6 +180,63 @@ it('serves a template listing the period employees', function (): void {
     expect((float) $row[2])->toBe((float) $basicAmount);
 });
 
+it('pre-fills the template from Master Gaji for components the employee does not state', function (): void {
+    $basic = BasicWageComponent::for($this->tenant->id);
+    $allowance = PayrollComponent::forTenant($this->tenant->id)->where('code', 'TJ-JAB')->firstOrFail();
+    $meal = PayrollComponent::forTenant($this->tenant->id)->where('code', 'TJ-MKN')->firstOrFail();
+
+    // The employee states their own Gaji Pokok; everything else they take from
+    // the master their position is on.
+    EmployeeSalaryComponent::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'payroll_component_id' => $basic->id,
+        'amount' => 10_000_000,
+        'status' => 'active',
+        'effective_start_date' => '2020-01-01',
+    ]);
+
+    $master = SalaryMaster::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'MASTER-IMPOR',
+        'category' => 'Organik',
+        'is_active' => true,
+    ]);
+
+    // A lower Gaji Pokok the employee's own figure must beat, an allowance only
+    // the master states, and a per-present-day rate that is not a month's money.
+    $master->components()->create(['payroll_component_id' => $basic->id, 'included' => true, 'amount' => 6_000_000]);
+    $master->components()->create(['payroll_component_id' => $allowance->id, 'included' => true, 'amount' => 1_500_000]);
+    $master->components()->create(['payroll_component_id' => $meal->id, 'included' => true, 'amount' => 25_000]);
+
+    $this->employee->update(['salary_master_id' => $master->id]);
+
+    $response = actingAs($this->admin)
+        ->get(route('avana.payroll.impor.template', ['payroll_period_id' => $this->period->id]))
+        ->assertOk();
+
+    $sheet = Excel::toArray(
+        new PayrollImportRowsImport,
+        $response->baseResponse->getFile()->getPathname(),
+        null,
+        ExcelFormat::XLSX,
+    )[0];
+
+    $headings = $sheet[0];
+    $row = collect($sheet)->firstWhere(0, $this->employee->employee_number);
+
+    expect($row)->not->toBeNull();
+
+    $at = fn (string $heading): string => (string) ($row[array_search($heading, $headings, true)] ?? '');
+
+    // The employee's own figure wins over the master's.
+    expect((float) $at('Gaji Pokok'))->toBe(10_000_000.0);
+    // The allowance only the master states is filled in, not left blank.
+    expect((float) $at('Tunjangan Jabatan'))->toBe(1_500_000.0);
+    // A per-present-day rate is not a month's money, so nothing pre-fills it.
+    expect($at('Tunjangan Makan'))->toBe('');
+});
+
 it('builds the template columns from the tenant master components', function (): void {
     // Gaji Pokok, the fixed allowances, the variable pay, then the deductions —
     // bracketed by the fixed columns.
@@ -241,7 +303,9 @@ it('sums the component columns into the bruto and names them on the slip', funct
     expect((float) $item->gross_salary)->toBe(9_500_000.0);
     // Everything above Gaji Pokok is allowance.
     expect((float) $item->total_allowance)->toBe(1_500_000.0);
-    expect((float) $item->total_deduction)->toBe(200_000.0);
+    // Everything taken off the pay, as on a computed run: 200.000 potongan +
+    // 400.000 BPJS + 300.000 PPh 21, so bruto − potongan = netto.
+    expect((float) $item->total_deduction)->toBe(900_000.0);
     // 9.500.000 − 200.000 potongan − 400.000 BPJS − 300.000 PPh 21.
     expect((float) $item->net_salary)->toBe(8_600_000.0);
 
@@ -326,8 +390,9 @@ it('keeps the structural columns when a component shares their name', function (
     $item = PayrollRunItem::where('payroll_period_id', $this->period->id)->firstOrFail();
 
     expect((float) $item->pph21_total)->toBe(150_000.0);
-    // Read as a deduction component instead, it would have landed here.
-    expect((float) $item->total_deduction)->toBe(0.0);
+    // Read as the deduction component instead, the payslip would carry a
+    // "PPh21" component line and the tax column would have stayed empty.
+    expect(collect($item->calculation_snapshot['deductions'])->pluck('name')->all())->toBe(['PPh 21']);
     expect((float) $item->net_salary)->toBe(5_850_000.0);
 });
 
@@ -353,6 +418,103 @@ it('rejects a non-numeric component amount', function (): void {
     ])->assertSessionHasErrors('file');
 
     expect(PayrollRunItem::where('payroll_period_id', $this->period->id)->count())->toBe(0);
+});
+
+it('shows the uploaded figures on the payslip panel instead of recomputing them', function (): void {
+    // A salary the engine would compute from, deliberately unlike the figure
+    // the file states: a panel that recomputed would show this instead.
+    EmployeeSalaryComponent::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'payroll_component_id' => BasicWageComponent::for($this->tenant->id)->id,
+        'amount' => 9_750_000,
+        'status' => 'active',
+        'effective_start_date' => '2020-01-01',
+    ]);
+
+    actingAs($this->admin)->post(route('avana.payroll.impor.store'), [
+        'payroll_period_id' => $this->period->id,
+        'file' => payrollCsv("{$this->employee->employee_number},a,4.000.000,0,0,0,0,0,\n"),
+    ])->assertSessionHasNoErrors();
+
+    $props = actingAs($this->admin)
+        ->get(route('avana.payroll', ['period' => $this->period->id, 'slip_employee' => $this->employee->id]))
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    expect($props['slip']['employee_id'])->toBe($this->employee->id);
+    // The panel must not caption uploaded figures as a live calculation.
+    expect($props['slip']['source'])->toBe('import');
+    expect($props['slip']['gross'])->toBe('Rp 4.000.000');
+    expect($props['slip']['net'])->toBe('Rp 4.000.000');
+    // The slip must not quietly read as a computed one.
+    expect($props['slip']['notice'])->toContain('diunggah');
+    // The lines the file named, not the components the engine would have used.
+    expect(collect($props['slip']['earnings'])->pluck('k')->all())->toBe(['Gaji Bruto']);
+    // The panel and the totals beside it now state the same payroll.
+    expect($props['summary']['total_gross'])->toBe($props['slip']['gross']);
+});
+
+it('still computes the slip live for a period that was not uploaded', function (): void {
+    EmployeeSalaryComponent::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'payroll_component_id' => BasicWageComponent::for($this->tenant->id)->id,
+        'amount' => 9_750_000,
+        'status' => 'active',
+        'effective_start_date' => '2020-01-01',
+    ]);
+
+    $props = actingAs($this->admin)
+        ->get(route('avana.payroll', ['period' => $this->period->id, 'slip_employee' => $this->employee->id]))
+        ->assertOk()
+        ->viewData('page')['props'];
+
+    expect($props['slip']['notice'] ?? '')->not->toContain('diunggah');
+    expect($props['slip']['source'] ?? null)->not->toBe('import');
+    // A computed slip annotates each line with where its number came from;
+    // an imported one has no setting to point at.
+    expect($props['slip']['earnings'][0])->toHaveKey('why');
+});
+
+it('refuses to upload over a period the engine already computed', function (): void {
+    $run = PayrollRun::create([
+        'tenant_id' => $this->tenant->id,
+        'payroll_period_id' => $this->period->id,
+        'revision' => 1,
+        'status' => 'calculated',
+        'source' => PayrollRun::SOURCE_ENGINE,
+        'employee_count' => 1,
+        'total_gross' => 9_750_000,
+        'total_net' => 9_750_000,
+    ]);
+
+    PayrollRunItem::create([
+        'tenant_id' => $this->tenant->id,
+        'payroll_run_id' => $run->id,
+        'payroll_period_id' => $this->period->id,
+        'employee_id' => $this->employee->id,
+        'gross_salary' => 9_750_000,
+        'taxable_gross' => 9_750_000,
+        'tax_deductible_premium' => 0,
+        'total_allowance' => 0,
+        'total_deduction' => 0,
+        'bpjs_employee_total' => 0,
+        'bpjs_company_total' => 0,
+        'pph21_total' => 0,
+        'net_salary' => 9_750_000,
+        'calculation_snapshot' => ['source' => 'engine'],
+        'status' => 'calculated',
+    ]);
+
+    actingAs($this->admin)->post(route('avana.payroll.impor.store'), [
+        'payroll_period_id' => $this->period->id,
+        'file' => payrollCsv("{$this->employee->employee_number},a,4000000,0,0,0,0,0,\n"),
+    ])->assertSessionHasErrors('file');
+
+    // The computed payroll survives untouched.
+    expect($run->fresh()->source)->toBe(PayrollRun::SOURCE_ENGINE);
+    expect((float) PayrollRunItem::where('payroll_run_id', $run->id)->sole()->gross_salary)->toBe(9_750_000.0);
 });
 
 it('keeps the upload away from a role without payroll rights', function (): void {

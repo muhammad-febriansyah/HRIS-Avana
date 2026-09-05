@@ -57,6 +57,8 @@ export interface Slip {
     deductions: SlipLine[];
     /** Bruto pajak and the TER rate it resolved — shown, not deducted. */
     tax_info?: SlipLine[];
+    /** Set to "import" when the figures come from an uploaded payroll. */
+    source?: string | null;
     /** Why the sample slip could not be computed, when it could not. */
     notice?: string | null;
     gross: string;

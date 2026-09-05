@@ -215,7 +215,7 @@ class PayrollController extends Controller
             ],
             'recipients' => $recipients,
             'recipient_meta' => $recipientMeta,
-            'slip' => $this->buildSampleSlip($tenantId, $selectedPeriod, $request->integer('slip_employee') ?: null),
+            'slip' => $this->buildSampleSlip($tenantId, $selectedPeriod, $request->integer('slip_employee') ?: null, $selectedRun),
             'slip_employees' => Employee::forTenant($tenantId)
                 ->where('status', 'active')
                 ->orderBy('full_name')
@@ -1699,7 +1699,7 @@ class PayrollController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function buildSampleSlip(int $tenantId, ?PayrollPeriod $period, ?int $employeeId = null): array
+    private function buildSampleSlip(int $tenantId, ?PayrollPeriod $period, ?int $employeeId = null, ?PayrollRun $run = null): array
     {
         // A chosen employee makes this a dry-run preview: HR picks anyone and
         // sees their slip computed live from the current configuration, before
@@ -1714,6 +1714,16 @@ class PayrollController extends Controller
             ->first();
 
         if ($employee !== null && $period !== null) {
+            // An uploaded payroll never went through the engine, so computing
+            // one here would show the figures the system WOULD have paid rather
+            // than the ones the period actually pays — the summary and the
+            // recipient table beside it already read the uploaded numbers.
+            $imported = $this->importedSlip($tenantId, $employee, $run);
+
+            if ($imported !== null) {
+                return $imported;
+            }
+
             try {
                 $pay = $this->computeEmployeePay($employee, $period, $tenantId);
             } catch (Pph21ConfigurationException $exception) {
@@ -1786,6 +1796,66 @@ class PayrollController extends Controller
             'gross' => $this->rupiah(6_500_000),
             'deduction' => $this->rupiah(350_000),
             'net' => $this->rupiah(6_150_000),
+        ];
+    }
+
+    /**
+     * The payslip an uploaded payroll states for this employee, or null when
+     * the period was not uploaded.
+     *
+     * The stored snapshot IS the payslip for an imported run: the tenant
+     * computed these figures elsewhere, and the engine has nothing to say about
+     * them. Recomputing instead would quietly show master-gaji numbers on a
+     * screen whose totals come from the file — two different payrolls on one
+     * page, with nothing marking which is which.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function importedSlip(int $tenantId, Employee $employee, ?PayrollRun $run): ?array
+    {
+        if ($run === null || $run->source !== PayrollRun::SOURCE_IMPORT) {
+            return null;
+        }
+
+        $item = PayrollRunItem::forTenant($tenantId)
+            ->where('payroll_run_id', $run->id)
+            ->where('employee_id', $employee->id)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($item === null) {
+            return null;
+        }
+
+        $snapshot = is_array($item->calculation_snapshot) ? $item->calculation_snapshot : [];
+
+        /** @var array<int, array{name: string, amount: float}> $earnings */
+        $earnings = $snapshot['earnings'] ?? [];
+        /** @var array<int, array{name: string, amount: float}> $deductions */
+        $deductions = $snapshot['deductions'] ?? [];
+
+        return [
+            'employee' => $employee->full_name,
+            'employee_id' => $employee->id,
+            'payslip_id' => $item->id,
+            // Tells the panel not to caption itself as a live calculation.
+            'source' => 'import',
+            // Said on the slip itself, because the numbers here cannot be
+            // traced back to any setting the way a computed slip's can.
+            'notice' => 'Payroll periode ini diunggah, bukan dihitung sistem. Angka di bawah berasal dari berkas'
+                .(is_string($snapshot['file'] ?? null) ? ' '.$snapshot['file'] : '')
+                .' — PPh 21 dan BPJS adalah yang tertulis di berkas, bukan hasil perhitungan TER.',
+            'earnings' => array_map(
+                fn (array $row): array => ['k' => $row['name'], 'v' => $this->rupiah($row['amount'])],
+                [...$earnings, ...$this->refundLines($deductions)],
+            ),
+            'deductions' => array_map(
+                fn (array $row): array => ['k' => $row['name'], 'v' => $this->rupiah($row['amount'])],
+                $this->chargedDeductions($deductions),
+            ),
+            'gross' => $this->rupiah($item->gross_salary),
+            'deduction' => $this->rupiah($item->total_deduction),
+            'net' => $this->rupiah($item->net_salary),
         ];
     }
 

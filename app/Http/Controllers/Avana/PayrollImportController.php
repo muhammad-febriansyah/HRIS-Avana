@@ -10,6 +10,8 @@ use App\Models\EmployeeSalaryComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
+use App\Models\SalaryChangeSet;
+use App\Models\SalaryMasterComponent;
 use App\Models\User;
 use App\Support\BasicWageComponent;
 use App\Support\PayrollImportLayout;
@@ -75,8 +77,14 @@ final class PayrollImportController extends Controller
     }
 
     /**
-     * The fixed component amounts each employee's salary already states, to
+     * The fixed component amounts each employee's pay already states, to
      * pre-fill the template with.
+     *
+     * Two sources, in the order payroll itself reads them: the figures set on
+     * the employee, then their Master Gaji for the components the employee has
+     * no figure of their own for. Reading only the first would hand HR a
+     * template short of every allowance that lives on the master — a file that
+     * looks complete and underpays.
      *
      * Only amounts that mean rupiah-per-month are filled: a percentage
      * component holds a percentage and an attendance-based one holds a daily or
@@ -116,7 +124,110 @@ final class PayrollImportController extends Controller
             $amounts[$employeeId][$componentId] = ($amounts[$employeeId][$componentId] ?? 0.0) + (float) $row->amount;
         }
 
+        return $this->fillFromSalaryMaster($tenantId, $employees, $amounts);
+    }
+
+    /**
+     * Add the Master Gaji amounts for components the employee states no figure
+     * of their own for.
+     *
+     * Deductions and variable pay are left out on purpose: the master's figure
+     * for those is a standing default the month may or may not charge, and a
+     * pre-filled number is the kind nobody re-reads before uploading. The
+     * employee's own row is different — it states what that person is actually
+     * on, so it pre-fills whatever it can mean as a month's money.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @param  array<int, array<int, float>>  $amounts
+     * @return array<int, array<int, float>>
+     */
+    private function fillFromSalaryMaster(int $tenantId, Collection $employees, array $amounts): array
+    {
+        $masterIds = $this->effectiveMasterIds($tenantId, $employees);
+
+        if ($masterIds === []) {
+            return $amounts;
+        }
+
+        $componentsByMaster = SalaryMasterComponent::query()
+            ->whereIn('salary_master_id', array_values(array_unique($masterIds)))
+            ->where('included', true)
+            ->with('component')
+            ->get()
+            ->groupBy('salary_master_id');
+
+        foreach ($employees as $employee) {
+            $employeeId = (int) $employee->id;
+            $masterId = $masterIds[$employeeId] ?? null;
+
+            if ($masterId === null) {
+                continue;
+            }
+
+            foreach ($componentsByMaster->get($masterId, collect()) as $masterComponent) {
+                $component = $masterComponent->component;
+                $amount = (float) $masterComponent->amount;
+
+                if ($component === null
+                    || $component->status !== 'active'
+                    || $component->type === 'deduction'
+                    || $amount <= 0.0
+                    || PayrollImportLayout::isVariable($component)) {
+                    continue;
+                }
+
+                // The employee's own figure wins — the master only fills what
+                // the person does not already state.
+                $amounts[$employeeId][(int) $component->id] ??= $amount;
+            }
+        }
+
         return $amounts;
+    }
+
+    /**
+     * The Master Gaji in force for each employee, in one query instead of one
+     * per row. Mirrors SalaryMasterAssignment::effectiveMasterId(): the latest
+     * active change set that has started, else the employee's own master.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @return array<int, int>
+     */
+    private function effectiveMasterIds(int $tenantId, Collection $employees): array
+    {
+        $masters = [];
+
+        foreach ($employees as $employee) {
+            if ($employee->salary_master_id !== null) {
+                $masters[(int) $employee->id] = (int) $employee->salary_master_id;
+            }
+        }
+
+        $changeSets = SalaryChangeSet::forTenant($tenantId)
+            ->whereIn('employee_id', $employees->pluck('id'))
+            ->where('status', 'active')
+            ->where(fn ($query) => $query
+                ->whereNull('effective_start_date')
+                ->orWhereDate('effective_start_date', '<=', now()->toDateString()))
+            ->orderBy('effective_start_date')
+            ->orderBy('id')
+            ->get(['employee_id', 'salary_master_id']);
+
+        // Ascending, so the last row seen for an employee is the change set in
+        // force — including one that moves them off a master entirely.
+        foreach ($changeSets as $changeSet) {
+            $employeeId = (int) $changeSet->employee_id;
+
+            if ($changeSet->salary_master_id === null) {
+                unset($masters[$employeeId]);
+
+                continue;
+            }
+
+            $masters[$employeeId] = (int) $changeSet->salary_master_id;
+        }
+
+        return $masters;
     }
 
     /**
@@ -319,9 +430,15 @@ final class PayrollImportController extends Controller
             $seen[$key] = true;
 
             $otherDeduction = $this->money($deductionCell);
-            $deductionValue = $otherDeduction + $componentDeduction;
             $bpjsEmployeeValue = $this->money($bpjsEmployeeCell);
             $pph21Value = $this->money($pph21Cell);
+
+            // Everything taken off the pay, which is what total_deduction means
+            // on a computed run: BPJS and PPh 21 included, so `bruto − potongan
+            // = netto` holds for an uploaded payslip exactly as it does for a
+            // calculated one. They keep their own columns too, for the reports
+            // that need the tax and the contribution on their own.
+            $deductionValue = $otherDeduction + $componentDeduction + $bpjsEmployeeValue + $pph21Value;
 
             $rows[] = [
                 'employee' => $employees->get($key),
@@ -335,7 +452,7 @@ final class PayrollImportController extends Controller
                 // making HR restate arithmetic the file already implies.
                 'net' => $netCell !== ''
                     ? $this->money($netCell)
-                    : max(0.0, $gross - $deductionValue - $bpjsEmployeeValue - $pph21Value),
+                    : max(0.0, $gross - $deductionValue),
                 'earnings' => $earnings,
                 'deductions' => [
                     ...$deductionLines,

@@ -126,15 +126,17 @@ final class PayrollImportGuideSheet implements FromArray, ShouldAutoSize, WithHe
 
         return [
             ...$rows,
-            ['bpjs_karyawan', 'Opsional', 'Iuran BPJS (Kesehatan + JHT + JP) yang dipotong dari karyawan.'],
-            ['bpjs_perusahaan', 'Opsional', 'Iuran BPJS yang ditanggung perusahaan — tidak mengurangi THP.'],
-            ['pph21', 'Opsional', 'PPh 21 yang dipotong. Kosongkan bila tidak memotong.'],
-            ['take_home_pay', 'Opsional', 'Kosongkan = penerimaan − potongan − BPJS karyawan − PPh 21.'],
+            ['bpjs_karyawan', 'Opsional', 'Iuran BPJS (Kesehatan + JHT + JP) yang dipotong dari karyawan. Dikosongkan = 0, tidak dihitung sistem.'],
+            ['bpjs_perusahaan', 'Opsional', 'Iuran BPJS yang ditanggung perusahaan — tidak mengurangi THP. Dikosongkan = 0, tidak dihitung sistem.'],
+            ['pph21', 'Opsional', 'PPh 21 yang dipotong. Dikosongkan = 0, artinya slip keluar tanpa potongan pajak.'],
+            ['take_home_pay', 'Opsional', 'Satu-satunya kolom yang diturunkan bila kosong: penerimaan − potongan − BPJS karyawan − PPh 21.'],
             ['', '', ''],
             ['Catatan', '', 'Kolom komponen mengikuti Master Komponen tenant. Menambah komponen di master menambah kolom di template berikutnya.'],
-            ['Catatan', '', 'Status PTKP dan kategori TER tidak diisi di sini — diambil dari data karyawan dan dihitung sistem.'],
+            ['Catatan', '', 'Impor TIDAK menjalankan mesin perhitungan: kategori TER dan status PTKP karyawan tidak dipakai, dan PPh 21 tidak dihitung. Isi sendiri kolom pph21, atau pakai Jalankan Payroll bila ingin sistem yang menghitung pajak.'],
             ['Catatan', '', 'Angka boleh ditulis 10.000.000 atau 10000000. Baris kosong dilewati.'],
+            ['Catatan', '', 'Setiap baris wajib punya minimal satu komponen penerimaan terisi. Satu baris kosong membatalkan seluruh impor.'],
             ['Catatan', '', 'Impor mengganti seluruh data payroll periode yang dipilih.'],
+            ['Catatan', '', 'Periode yang sudah pernah dihitung sistem tidak bisa ditimpa impor — pakai periode yang belum dihitung.'],
         ];
     }
 

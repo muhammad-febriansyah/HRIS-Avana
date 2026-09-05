@@ -12,8 +12,10 @@ use Illuminate\Database\Eloquent\Collection;
  * the tenant actually keeps in Master Komponen, so a tenant with six components
  * downloads a template with six component columns and the numbers land on the
  * same names their payslip already shows. Everything the system derives for
- * itself — the PTKP status on the employee record, the TER bracket, the payroll
- * period — stays out of the file.
+ * itself — the PTKP status on the employee record, the payroll period — stays
+ * out of the file. The TER bracket is absent for a different reason: an import
+ * bypasses the tax engine entirely, so no bracket is ever resolved and the
+ * `pph21` column is the only thing that taxes the row.
  *
  * The template writes this layout and the importer reads it back, so both sides
  * ask the same class where a column is.

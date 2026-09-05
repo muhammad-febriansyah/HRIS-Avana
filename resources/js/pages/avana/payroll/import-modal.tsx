@@ -165,8 +165,12 @@ export function ImportModal({
                         }}
                     >
                         Satu kolom per komponen gaji yang aktif di Master
-                        Komponen. Status PTKP dan kategori TER tidak perlu diisi
-                        — diambil dari data karyawan dan dihitung sistem.
+                        Komponen, sudah terisi nominal dari master gaji sebagai
+                        titik awal — periksa dan sesuaikan sebelum diunggah.
+                        Kolom bpjs_karyawan, bpjs_perusahaan dan pph21 yang
+                        dikosongkan dihitung 0, bukan dihitung sistem: impor
+                        tidak menjalankan mesin pajak, jadi kategori TER
+                        karyawan tidak dipakai sama sekali.
                     </div>
                 </div>
 
