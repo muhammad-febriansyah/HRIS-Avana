@@ -82,6 +82,54 @@ it('requires both ends of a cut-off window', function (): void {
         ->assertSessionHasErrors('cut_off_end_day');
 });
 
+it('refuses a cut-off that closes on or after the pay date', function (): void {
+    // Attendance closes the same day wages land, so payroll could never be
+    // computed — let alone locked — before the transfer file is needed.
+    actingAs($this->admin)
+        ->post(route('avana.payroll.payday.store'), paydayPayload(['cut_off_start_day' => 1, 'cut_off_end_day' => 25]))
+        ->assertSessionHasErrors('cut_off_end_day');
+
+    expect(session('errors')->first('cut_off_end_day'))->toContain('sebelum tanggal bayar');
+
+    actingAs($this->admin)
+        ->post(route('avana.payroll.payday.store'), paydayPayload(['cut_off_start_day' => 27, 'cut_off_end_day' => 26]))
+        ->assertSessionHasErrors('cut_off_end_day');
+
+    expect(Payday::forTenant($this->tenant->id)->count())->toBe(0);
+});
+
+it('refuses a month-end group whose cut-off can reach the pay date', function (): void {
+    // February ends on the 28th, so a cut-off there closes on payday itself.
+    actingAs($this->admin)
+        ->post(route('avana.payroll.payday.store'), paydayPayload([
+            'pay_mode' => 'end_of_month',
+            'pay_day' => null,
+            'cut_off_start_day' => 1,
+            'cut_off_end_day' => 28,
+        ]))
+        ->assertSessionHasErrors('cut_off_end_day');
+
+    actingAs($this->admin)
+        ->post(route('avana.payroll.payday.store'), paydayPayload([
+            'pay_mode' => 'end_of_month',
+            'pay_day' => null,
+            'cut_off_start_day' => 1,
+            'cut_off_end_day' => 27,
+        ]))
+        ->assertSessionHas('success');
+});
+
+it('accepts a cut-off that closes before the pay date', function (): void {
+    actingAs($this->admin)
+        ->post(route('avana.payroll.payday.store'), paydayPayload())
+        ->assertSessionHas('success');
+
+    $payday = Payday::forTenant($this->tenant->id)->firstOrFail();
+
+    expect($payday->cut_off_end_day)->toBe(20)
+        ->and($payday->pay_day)->toBe(25);
+});
+
 it('refuses a duplicate code inside the tenant', function (): void {
     actingAs($this->admin)->post(route('avana.payroll.payday.store'), paydayPayload());
 

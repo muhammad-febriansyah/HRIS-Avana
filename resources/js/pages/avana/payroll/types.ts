@@ -59,7 +59,10 @@ export interface Slip {
     tax_info?: SlipLine[];
     /** Set to "import" when the figures come from an uploaded payroll. */
     source?: string | null;
-    /** Why the sample slip could not be computed, when it could not. */
+    /**
+     * Why the slip is incomplete: it could not be computed at all, or a per-day
+     * attendance allowance is waiting for its cut-off to close.
+     */
     notice?: string | null;
     gross: string;
     deduction: string;

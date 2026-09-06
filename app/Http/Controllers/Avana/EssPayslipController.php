@@ -25,11 +25,12 @@ class EssPayslipController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
-        // Only finalised runs: a payslip from a run still being reviewed is a
-        // figure the employee may not be paid.
+        // Only finalised runs — a payslip from a run still being reviewed is a
+        // figure the employee may not be paid — and only from H-3 before the
+        // pay date, which is when the company hands the slip over.
         $items = PayrollRunItem::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
-            ->published()
+            ->released()
             ->with('period:id,name')
             ->orderByDesc('id')
             ->get();
@@ -46,16 +47,15 @@ class EssPayslipController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
-        $item->loadMissing('run:id,status');
+        $item->loadMissing(['run:id,status', 'period:id,name,pay_date']);
 
         abort_if(
             (int) $item->tenant_id !== (int) $employee->tenant_id
             || (int) $item->employee_id !== (int) $employee->id
-            || ! $item->isPublished(),
+            || ! $item->isReleased(),
             404,
         );
 
-        $item->loadMissing('period:id,name');
         $snapshot = $item->calculation_snapshot ?? [];
 
         return Inertia::render('avana/saya/slip-gaji-detail', [

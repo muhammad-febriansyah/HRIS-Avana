@@ -20,10 +20,11 @@ class PayslipController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
-        // Only finalised runs — see PayrollRunItem::scopePublished().
+        // Only finalised runs, and only from H-3 before the pay date — see
+        // PayrollRunItem::scopeReleased().
         $data = PayrollRunItem::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
-            ->published()
+            ->released()
             ->with('period:id,name')
             ->orderByDesc('id')
             ->get()
@@ -36,16 +37,15 @@ class PayslipController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
-        $item->loadMissing('run:id,status');
+        $item->loadMissing(['run:id,status', 'period:id,name,pay_date']);
 
         abort_if(
             (int) $item->tenant_id !== (int) $employee->tenant_id
             || (int) $item->employee_id !== (int) $employee->id
-            || ! $item->isPublished(),
+            || ! $item->isReleased(),
             404,
         );
 
-        $item->loadMissing('period:id,name');
         $snapshot = $item->calculation_snapshot ?? [];
 
         $lines = [];
@@ -74,16 +74,16 @@ class PayslipController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
-        $item->loadMissing('run:id,status');
+        $item->loadMissing(['run:id,status', 'period']);
 
         abort_if(
             (int) $item->tenant_id !== (int) $employee->tenant_id
             || (int) $item->employee_id !== (int) $employee->id
-            || ! $item->isPublished(),
+            || ! $item->isReleased(),
             404,
         );
 
-        $item->loadMissing(['employee.position', 'employee.department', 'employee.tenant', 'period']);
+        $item->loadMissing(['employee.position', 'employee.department', 'employee.tenant']);
         $slipEmployee = $item->employee;
 
         abort_if($slipEmployee === null, 404);

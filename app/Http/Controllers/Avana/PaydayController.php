@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\Payday;
 use App\Models\User;
+use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -143,7 +144,10 @@ class PaydayController extends Controller
             'pay_mode' => ['required', Rule::in(['date', 'end_of_month'])],
             'pay_day' => ['nullable', 'integer', 'min:1', 'max:31', 'required_if:pay_mode,date'],
             'cut_off_start_day' => ['nullable', 'integer', 'min:1', 'max:31'],
-            'cut_off_end_day' => ['nullable', 'integer', 'min:1', 'max:31', 'required_with:cut_off_start_day'],
+            'cut_off_end_day' => [
+                'nullable', 'integer', 'min:1', 'max:31', 'required_with:cut_off_start_day',
+                $this->closesBeforePayday($request),
+            ],
             'description' => ['nullable', 'string', 'max:255'],
             'is_active' => ['required', 'boolean'],
         ], [
@@ -158,6 +162,41 @@ class PaydayController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * A cut-off has to close before payday, or the month cannot be paid.
+     *
+     * Payroll reads attendance up to the cut-off, and a per-day allowance is
+     * only totalled once that window shuts; the bank transfer file in turn
+     * needs a locked run. So a group whose cut-off closes on or after its pay
+     * date can never be paid on time — the failure shows up as a stuck payroll
+     * weeks later, which is far from the screen that caused it.
+     *
+     * A group paid at month end is measured against the shortest month, so the
+     * rule holds in February too.
+     */
+    private function closesBeforePayday(Request $request): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($request): void {
+            if ($value === null || $value === '') {
+                return;
+            }
+
+            if ($request->input('pay_mode') === 'end_of_month') {
+                if ((int) $value >= 28) {
+                    $fail('Cut-off harus tutup sebelum tanggal bayar. Kelompok yang dibayar akhir bulan perlu cut-off paling lambat tanggal 27.');
+                }
+
+                return;
+            }
+
+            $payDay = $request->input('pay_day');
+
+            if ($payDay !== null && $payDay !== '' && (int) $value >= (int) $payDay) {
+                $fail('Cut-off harus tutup sebelum tanggal bayar — payroll tidak bisa dihitung sebelum kehadiran ditutup. Contoh: cut-off 21 s.d. 20 untuk gajian tanggal 25.');
+            }
+        };
     }
 
     private function ensureCan(Request $request, string $action): void

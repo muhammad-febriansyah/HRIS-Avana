@@ -6,6 +6,7 @@ use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
+use Illuminate\Support\Carbon;
 
 beforeEach(function (): void {
     $this->seed(AvanaDemoSeeder::class);
@@ -46,6 +47,7 @@ beforeEach(function (): void {
         ],
     ]);
 
+    $this->period = $period;
     $this->item = $make($this->employee->id);
 
     $other = Employee::forTenant($tenantId)->where('id', '!=', $this->employee->id)->firstOrFail();
@@ -80,6 +82,35 @@ it('shows the payslip once the run is locked', function (): void {
     ($this->auth)()->getJson('/api/v1/me/payslips')->assertOk()->assertJsonCount(0, 'data');
 
     $this->run->update(['status' => PayrollRun::STATUS_LOCKED]);
+
+    ($this->auth)()->getJson('/api/v1/me/payslips')->assertOk()->assertJsonCount(1, 'data');
+    ($this->auth)()->getJson('/api/v1/me/payslips/'.$this->item->id)->assertOk();
+    ($this->auth)()->get('/api/v1/me/payslips/'.$this->item->id.'/pdf')->assertOk();
+});
+
+it('keeps showing a released payslip whose period row was deleted', function (): void {
+    // The foreign key nulls payroll_period_id. The slip stays the employee's:
+    // list and detail have to agree, or one hides what the other still opens.
+    $this->item->update(['payroll_period_id' => null]);
+
+    ($this->auth)()->getJson('/api/v1/me/payslips')->assertOk()->assertJsonCount(1, 'data');
+    ($this->auth)()->getJson('/api/v1/me/payslips/'.$this->item->id)->assertOk();
+});
+
+it('holds a locked payslip back on mobile until H-3 before the pay date', function (): void {
+    // Payday is a week out: the run is final, but the slip is not the
+    // employee's to read yet.
+    $this->item->update([
+        'released_at' => PayrollRunItem::releaseDateFrom(Carbon::today()->addDays(7)->toDateString()),
+    ]);
+
+    ($this->auth)()->getJson('/api/v1/me/payslips')->assertOk()->assertJsonCount(0, 'data');
+    ($this->auth)()->getJson('/api/v1/me/payslips/'.$this->item->id)->assertNotFound();
+    ($this->auth)()->get('/api/v1/me/payslips/'.$this->item->id.'/pdf')->assertNotFound();
+
+    $this->item->update([
+        'released_at' => PayrollRunItem::releaseDateFrom(Carbon::today()->addDays(3)->toDateString()),
+    ]);
 
     ($this->auth)()->getJson('/api/v1/me/payslips')->assertOk()->assertJsonCount(1, 'data');
     ($this->auth)()->getJson('/api/v1/me/payslips/'.$this->item->id)->assertOk();

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Imports\PayrollImportRowsImport;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
+use App\Models\Payday;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
@@ -538,6 +539,18 @@ final class PayrollImportController extends Controller
             $totals = ['gross' => 0.0, 'deduction' => 0.0, 'tax' => 0.0, 'net' => 0.0];
             $stamp = now()->toDateTimeString();
 
+            // An uploaded payslip is handed over on the same H-3 schedule as a
+            // computed one: the employee's Mapping Payday group states the pay
+            // date, falling back to the period's own.
+            $paydays = Payday::forTenant($tenantId)->get()->keyBy('id');
+            $releaseDate = function (Employee $employee) use ($paydays, $period): ?string {
+                $payDate = $employee->payday_id !== null && $period->end_date !== null
+                    ? $paydays->get($employee->payday_id)?->payDateFor($period->end_date->copy())->toDateString()
+                    : null;
+
+                return PayrollRunItem::releaseDateFrom($payDate ?? $period->pay_date?->toDateString());
+            };
+
             foreach ($rows as $row) {
                 /** @var Employee $employee */
                 $employee = $row['employee'];
@@ -574,6 +587,7 @@ final class PayrollImportController extends Controller
                         'net' => $row['net'],
                     ],
                     'status' => 'calculated',
+                    'released_at' => $releaseDate($employee),
                 ]);
 
                 $totals['gross'] += $row['gross'];
