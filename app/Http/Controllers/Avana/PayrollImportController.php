@@ -283,7 +283,7 @@ final class PayrollImportController extends Controller
         // stray space in the spreadsheet still finds the right person.
         $employees = Employee::forTenant($tenantId)
             ->whereNotNull('employee_number')
-            ->get(['id', 'employee_number', 'full_name'])
+            ->get(['id', 'employee_number', 'full_name', 'payday_id'])
             ->keyBy(fn (Employee $employee): string => $this->normaliseNumber((string) $employee->employee_number));
 
         $rows = [];
@@ -539,7 +539,7 @@ final class PayrollImportController extends Controller
             $totals = ['gross' => 0.0, 'deduction' => 0.0, 'tax' => 0.0, 'net' => 0.0];
             $stamp = now()->toDateTimeString();
 
-            // An uploaded payslip is handed over on the same H-3 schedule as a
+            // An uploaded payslip is handed over on the same H-1 schedule as a
             // computed one: the employee's Mapping Payday group states the pay
             // date, falling back to the period's own.
             $paydays = Payday::forTenant($tenantId)->get()->keyBy('id');
@@ -722,7 +722,7 @@ final class PayrollImportController extends Controller
         }
 
         $period = PayrollPeriod::forTenant($tenantId)
-            ->where('code', 'not like', 'THR-%')
+            ->regular()
             ->orderByDesc('start_date')
             ->first();
 

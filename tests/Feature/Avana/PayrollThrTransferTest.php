@@ -62,6 +62,9 @@ it('creates a THR period and run with one item per active employee', function ()
 
     expect($period->name)->toBe('THR '.$year);
     expect($period->status)->toBe('draft');
+    // Typed, not just named: every "is this THR?" question now reads the type.
+    expect($period->isThr())->toBeTrue();
+    expect(PayrollPeriod::forTenant($tenantId)->regular()->whereKey($period->id)->exists())->toBeFalse();
     expect($run->status)->toBe('calculated');
     expect((int) $run->employee_count)->toBe($activeCount);
     expect(PayrollRunItem::where('payroll_run_id', $run->id)->count())->toBe($activeCount);

@@ -80,6 +80,10 @@ it('requires both ends of a cut-off window', function (): void {
     actingAs($this->admin)
         ->post(route('avana.payroll.payday.store'), paydayPayload(['cut_off_end_day' => null]))
         ->assertSessionHasErrors('cut_off_end_day');
+
+    actingAs($this->admin)
+        ->post(route('avana.payroll.payday.store'), paydayPayload(['cut_off_start_day' => null]))
+        ->assertSessionHasErrors('cut_off_start_day');
 });
 
 it('refuses a cut-off that closes on or after the pay date', function (): void {

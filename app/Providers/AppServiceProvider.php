@@ -150,8 +150,9 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Wire the in-app notification glue: a decision on any approvable request
      * notifies its filer, a published announcement notifies the tenant, a
-     * locked payroll run notifies each paid employee, and platform billing
-     * events (invoice paid, subscription past_due) notify super admins.
+     * locked payroll run releases notifications that are already due, and
+     * platform billing events (invoice paid, subscription past_due) notify
+     * super admins.
      */
     protected function registerNotificationObservers(): void
     {

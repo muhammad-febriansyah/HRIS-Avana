@@ -367,6 +367,55 @@ it('rejects a one-day period — prorated salaries would collapse with it', func
         ->assertSessionHasErrors(['end_date']);
 });
 
+it('rejects a period that overlaps another regular period', function (): void {
+    PayrollPeriod::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'MN-20260801',
+        'name' => 'Agustus 2026',
+        'cycle' => 'monthly',
+        'start_date' => '2026-08-01',
+        'end_date' => '2026-08-31',
+        'status' => 'draft',
+    ]);
+
+    actingAs($this->admin)
+        ->post('spec-avana/payroll/periods', [
+            'name' => 'Agustus lagi',
+            'cycle' => 'monthly',
+            'start_date' => '2026-08-15',
+            'end_date' => '2026-09-14',
+        ])
+        ->assertSessionHasErrors(['start_date']);
+});
+
+it('lets a regular period sit inside the year a THR period spans', function (): void {
+    // THR covers 1 Jan–31 Dec by design and reads no attendance, so it cannot
+    // double-pay the days it overlaps. Counting it as a clash left a tenant that
+    // had generated THR unable to create any month at all.
+    PayrollPeriod::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'THR-2026',
+        'name' => 'THR 2026',
+        'type' => PayrollPeriod::TYPE_THR,
+        'cycle' => 'monthly',
+        'start_date' => '2026-01-01',
+        'end_date' => '2026-12-31',
+        'status' => 'draft',
+    ]);
+
+    actingAs($this->admin)
+        ->post('spec-avana/payroll/periods', [
+            'name' => 'Agustus 2026',
+            'cycle' => 'monthly',
+            'start_date' => '2026-08-01',
+            'end_date' => '2026-08-31',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect(PayrollPeriod::forTenant($this->tenant->id)->regular()->where('name', 'Agustus 2026')->exists())
+        ->toBeTrue();
+});
+
 it('previews any chosen employee\'s slip without saving a run', function (): void {
     $second = Employee::forTenant($this->tenant->id)
         ->where('status', 'active')

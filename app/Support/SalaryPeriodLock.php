@@ -63,7 +63,7 @@ final class SalaryPeriodLock
         }
 
         $splitPeriod = PayrollPeriod::forTenant($tenantId)
-            ->where('code', 'not like', 'THR-%')
+            ->regular()
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
             ->whereDate('start_date', '<', $from->toDateString())
@@ -117,7 +117,7 @@ final class SalaryPeriodLock
             : $today;
 
         $containingPeriod = PayrollPeriod::forTenant($tenantId)
-            ->where('code', 'not like', 'THR-%')
+            ->regular()
             ->whereDate('start_date', '<=', $earliest->toDateString())
             ->whereDate('end_date', '>=', $earliest->toDateString())
             ->orderByDesc('start_date')
@@ -128,7 +128,7 @@ final class SalaryPeriodLock
         }
 
         $nextPeriodStart = PayrollPeriod::forTenant($tenantId)
-            ->where('code', 'not like', 'THR-%')
+            ->regular()
             ->whereDate('start_date', '>', $earliest->toDateString())
             ->orderBy('start_date')
             ->value('start_date');

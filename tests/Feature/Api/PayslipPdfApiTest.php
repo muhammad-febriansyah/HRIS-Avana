@@ -97,7 +97,7 @@ it('keeps showing a released payslip whose period row was deleted', function ():
     ($this->auth)()->getJson('/api/v1/me/payslips/'.$this->item->id)->assertOk();
 });
 
-it('holds a locked payslip back on mobile until H-3 before the pay date', function (): void {
+it('holds a locked payslip back on mobile until H-1 before the pay date', function (): void {
     // Payday is a week out: the run is final, but the slip is not the
     // employee's to read yet.
     $this->item->update([
@@ -109,10 +109,14 @@ it('holds a locked payslip back on mobile until H-3 before the pay date', functi
     ($this->auth)()->get('/api/v1/me/payslips/'.$this->item->id.'/pdf')->assertNotFound();
 
     $this->item->update([
-        'released_at' => PayrollRunItem::releaseDateFrom(Carbon::today()->addDays(3)->toDateString()),
+        'released_at' => PayrollRunItem::releaseDateFrom(Carbon::today()->addDay()->toDateString()),
+        'created_at' => Carbon::today()->subMonth(),
     ]);
 
-    ($this->auth)()->getJson('/api/v1/me/payslips')->assertOk()->assertJsonCount(1, 'data');
+    ($this->auth)()->getJson('/api/v1/me/payslips')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.issued_at', Carbon::today()->toDateString());
     ($this->auth)()->getJson('/api/v1/me/payslips/'.$this->item->id)->assertOk();
     ($this->auth)()->get('/api/v1/me/payslips/'.$this->item->id.'/pdf')->assertOk();
 });

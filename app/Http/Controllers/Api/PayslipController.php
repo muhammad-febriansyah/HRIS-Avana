@@ -20,7 +20,7 @@ class PayslipController extends Controller
     {
         $employee = $this->currentEmployee($request);
 
-        // Only finalised runs, and only from H-3 before the pay date — see
+        // Only finalised runs, and only from H-1 before the pay date — see
         // PayrollRunItem::scopeReleased().
         $data = PayrollRunItem::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
@@ -149,7 +149,7 @@ class PayslipController extends Controller
             'tax' => (int) round((float) $i->pph21_total),
             'bpjs_employee' => (int) round((float) $i->bpjs_employee_total),
             'net' => (int) round((float) $i->net_salary),
-            'issued_at' => $i->created_at?->toDateString(),
+            'issued_at' => $i->issuedDate(),
         ];
     }
 }

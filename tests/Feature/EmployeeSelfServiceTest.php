@@ -528,12 +528,20 @@ it('releases a locked payslip to the employee only from its release date', funct
         ->get("/avana/saya/slip-gaji/{$payslip->public_id}")
         ->assertNotFound();
 
-    // Payday in three days: H-3 is today, so the slip is released.
+    // Payday is tomorrow: H-1 is today, so the slip is released.
     $payslip->update([
-        'released_at' => PayrollRunItem::releaseDateFrom(Carbon::today()->addDays(3)->toDateString()),
+        'released_at' => PayrollRunItem::releaseDateFrom(Carbon::today()->addDay()->toDateString()),
+        'created_at' => Carbon::today()->subMonth(),
     ]);
 
-    $listHas(true);
+    $this->actingAs($this->user)
+        ->get('/avana/saya/slip-gaji')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where(
+            'payslips',
+            fn ($rows) => collect($rows)->contains(fn ($row): bool => $row['id'] === $payslip->id
+                && $row['issued_at'] === Carbon::today()->toDateString()),
+        ));
     $this->actingAs($this->user)
         ->get("/avana/saya/slip-gaji/{$payslip->public_id}")
         ->assertOk();

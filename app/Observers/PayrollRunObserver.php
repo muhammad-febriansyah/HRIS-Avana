@@ -7,8 +7,8 @@ use App\Support\Notifier;
 use Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit;
 
 /**
- * Notifies each employee that their payslip is ready the moment a payroll run
- * is finalized (status → locked). Re-locking does not re-notify.
+ * Releases notifications for payslips that are already due when a payroll run
+ * is finalized. Future H-1 releases are picked up by the scheduled command.
  */
 class PayrollRunObserver implements ShouldHandleEventsAfterCommit
 {
@@ -22,6 +22,6 @@ class PayrollRunObserver implements ShouldHandleEventsAfterCommit
             return;
         }
 
-        Notifier::payrollLocked($run);
+        Notifier::payslipsReleased($run);
     }
 }

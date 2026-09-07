@@ -14,9 +14,9 @@ final class PayrollRunItem extends Model
 
     /**
      * How many days before the pay date a locked payslip becomes readable by
-     * the employee it belongs to — "slip terbit H-3".
+     * the employee it belongs to — "slip terbit H-1".
      */
-    public const RELEASE_LEAD_DAYS = 3;
+    public const RELEASE_LEAD_DAYS = 1;
 
     protected $guarded = [];
 
@@ -32,6 +32,7 @@ final class PayrollRunItem extends Model
             'net_salary' => 'decimal:2',
             'calculation_snapshot' => 'array',
             'released_at' => 'date',
+            'release_notified_at' => 'datetime',
         ];
     }
 
@@ -68,7 +69,7 @@ final class PayrollRunItem extends Model
 
     /**
      * Only the payslips an employee may read *now*: a locked run whose period
-     * has reached its release date, H-3 before the pay date.
+     * has reached its release date, H-1 before the pay date.
      *
      * Locking can happen well before payday — the moment finance finishes. A
      * slip visible from that moment tells the employee their net weeks early,
@@ -89,10 +90,10 @@ final class PayrollRunItem extends Model
     }
 
     /**
-     * The release date a pay date implies: H-3 before it. Null in, null out —
+     * The release date a pay date implies: H-1 before it. Null in, null out —
      * a run with no pay date releases on lock.
      *
-     * The single place the H-3 arithmetic lives, so the engine, THR and the
+     * The single place the H-1 arithmetic lives, so the engine, THR and the
      * payroll importer cannot drift apart on when a slip is handed over.
      */
     public static function releaseDateFrom(?string $payDate): ?string
@@ -102,8 +103,18 @@ final class PayrollRunItem extends Model
             : Carbon::parse($payDate)->subDays(self::RELEASE_LEAD_DAYS)->toDateString();
     }
 
+    /** The date displayed to employees as the payslip's publication date. */
+    public function issuedDate(): ?string
+    {
+        $releasedAt = $this->getAttribute('released_at');
+
+        return $releasedAt !== null
+            ? Carbon::parse((string) $releasedAt)->toDateString()
+            : $this->created_at?->toDateString();
+    }
+
     /**
-     * Whether this payslip is both final and past its H-3 release date.
+     * Whether this payslip is both final and past its H-1 release date.
      */
     public function isReleased(): bool
     {

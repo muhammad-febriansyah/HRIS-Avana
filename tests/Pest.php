@@ -240,6 +240,6 @@ function seedPresentDays(int $tenantId, Employee $employee, PayrollPeriod $perio
             ['tenant_id' => $tenantId, 'employee_id' => $employee->id, 'date' => $date->toDateString()],
             ['branch_id' => $employee->branch_id, 'status' => 'present'],
         );
-        $date->addDay();
+        $date = $date->addDay();
     }
 }

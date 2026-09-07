@@ -117,6 +117,52 @@ function StepArrow() {
     return <AIcon name="chevron-right" size={16} color={C.faint} />;
 }
 
+function formatDay(value: string) {
+    return new Date(`${value}T00:00:00`).toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+    });
+}
+
+/** Whether an ISO date is on or before today, compared in the browser's day. */
+function isDayPast(value: string) {
+    return value <= new Date().toLocaleDateString('sv-SE');
+}
+
+/**
+ * The server's refusal, shown inside the dialog that asked for the action.
+ *
+ * A dialog stays open when the request fails, so without this the only sign is
+ * a toast that has already gone — the button looks broken rather than refused.
+ */
+function DialogError({ message }: { message?: string }) {
+    if (!message) {
+        return null;
+    }
+
+    return (
+        <div
+            style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+                padding: '10px 12px',
+                borderRadius: 8,
+                background: 'rgba(220,38,38,.07)',
+                border: `1px solid ${C.red}`,
+                color: C.red,
+                fontSize: 12.5,
+                lineHeight: 1.5,
+                marginTop: 14,
+            }}
+        >
+            <AIcon name="circle-alert" size={16} color={C.red} />
+            <span>{message}</span>
+        </div>
+    );
+}
+
 export default function AvanaPayroll({
     periods,
     summary,
@@ -125,6 +171,7 @@ export default function AvanaPayroll({
     slip,
     slip_employees,
     stale_run,
+    pending_attendance_cut_off,
     checklist,
     filters,
 }: PayrollProps) {
@@ -159,9 +206,15 @@ export default function AvanaPayroll({
         }
     }, [flash?.warning]);
 
+    // A payroll error stops the whole run — cut-off, a stale snapshot, an
+    // unmapped PTKP. It has to outlast a glance, like flash.warning does, or the
+    // refusal reads as a button that did nothing and HR just clicks again.
     useEffect(() => {
         if (errors?.payroll) {
-            toast.error(errors.payroll, { id: errors.payroll });
+            toast.error(errors.payroll, {
+                id: errors.payroll,
+                duration: 12000,
+            });
         }
     }, [errors?.payroll]);
 
@@ -770,6 +823,47 @@ export default function AvanaPayroll({
                     </div>
                 )}
 
+                {pending_attendance_cut_off && !isLocked && (
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 10,
+                            padding: '12px 16px',
+                            borderRadius: 10,
+                            background: '#FFFBEB',
+                            border: `1px solid #FDE68A`,
+                            marginBottom: 16,
+                        }}
+                    >
+                        <AIcon name="calendar-clock" size={18} color="#B45309" />
+                        <div style={{ fontSize: 13, color: '#92400E' }}>
+                            {isDayPast(pending_attendance_cut_off) ? (
+                                <>
+                                    <strong>
+                                        Cut-off kehadiran sudah lewat, tunjangan
+                                        per hari hadir belum dihitung.
+                                    </strong>{' '}
+                                    Klik <strong>Jalankan</strong> untuk
+                                    menghitung ulang — approval dan penguncian
+                                    ditolak sampai angka itu masuk.
+                                </>
+                            ) : (
+                                <>
+                                    <strong>
+                                        Angka ini masih pratinjau: tunjangan per
+                                        hari hadir menunggu cut-off kehadiran{' '}
+                                        {formatDay(pending_attendance_cut_off)}.
+                                    </strong>{' '}
+                                    Jalankan ulang payroll setelah tanggal itu —
+                                    approval dan penguncian ditolak sampai
+                                    cut-off lewat.
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {!isLocked && summary.rejection_note && (
                     <div
                         style={{
@@ -864,6 +958,7 @@ export default function AvanaPayroll({
                     payDate={payDate}
                     setPayDate={setPayDate}
                     processing={processing}
+                    error={errors?.payroll}
                     onCancel={() => setRunOpen(false)}
                     onConfirm={confirmRun}
                 />
@@ -874,6 +969,7 @@ export default function AvanaPayroll({
                     note={approvalNote}
                     setNote={setApprovalNote}
                     processing={processing}
+                    error={errors?.payroll}
                     onCancel={() => setApprovalOpen(false)}
                     onApprove={confirmApprove}
                     onReject={confirmReject}
@@ -891,6 +987,7 @@ function ApprovalModal({
     note,
     setNote,
     processing,
+    error,
     onCancel,
     onApprove,
     onReject,
@@ -898,6 +995,7 @@ function ApprovalModal({
     note: string;
     setNote: (v: string) => void;
     processing: boolean;
+    error?: string;
     onCancel: () => void;
     onApprove: () => void;
     onReject: () => void;
@@ -980,6 +1078,8 @@ function ApprovalModal({
                     }}
                 />
 
+                <DialogError message={error} />
+
                 <div
                     style={{
                         display: 'flex',
@@ -1045,6 +1145,7 @@ function RunConfirmModal({
     payDate,
     setPayDate,
     processing,
+    error,
     onCancel,
     onConfirm,
 }: {
@@ -1052,6 +1153,7 @@ function RunConfirmModal({
     payDate: string;
     setPayDate: (v: string) => void;
     processing: boolean;
+    error?: string;
     onCancel: () => void;
     onConfirm: () => void;
 }) {
@@ -1173,6 +1275,8 @@ function RunConfirmModal({
                         pengiriman uang ke rekening pegawai.
                     </div>
                 </div>
+
+                <DialogError message={error} />
 
                 <div
                     style={{

@@ -28,6 +28,7 @@ use App\Models\WfhRequest;
 use App\Services\ApprovalEngine;
 use App\Services\FcmService;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Builds in-app notifications for the mobile feed and stamps each with a
@@ -548,60 +549,160 @@ final class Notifier
     }
 
     /**
-     * Notify each employee in a locked payroll run that their payslip is ready,
-     * deep-linking to that employee's own run item.
+     * Notify employees whose locked payslips have reached their H-1 release.
+     *
+     * Passing a run handles items already due at lock time, including legacy
+     * rows without a release date. The scheduled scan only handles dated rows,
+     * so deployment does not re-notify old payroll history. Each item is claimed
+     * atomically through release_notified_at before any channel is dispatched.
      */
-    public static function payrollLocked(PayrollRun $run): void
+    public static function payslipsReleased(?PayrollRun $run = null): int
     {
-        $items = PayrollRunItem::where('tenant_id', $run->tenant_id)
-            ->where('payroll_run_id', $run->id)
-            ->with('employee:id,user_id,tenant_id,email,full_name')
-            ->get(['id', 'tenant_id', 'employee_id', 'payroll_period_id']);
+        $query = PayrollRunItem::query()
+            ->released()
+            ->whereNull('release_notified_at')
+            ->whereHas('run', fn ($runQuery) => $runQuery->whereNull('superseded_at'));
 
-        $rows = $items
-            ->filter(fn (PayrollRunItem $item): bool => $item->employee?->user_id !== null)
-            ->map(fn (PayrollRunItem $item): array => [
-                'tenant_id' => $item->tenant_id,
-                'user_id' => $item->employee->user_id,
+        if ($run !== null) {
+            $query->where('tenant_id', $run->tenant_id)
+                ->where('payroll_run_id', $run->id);
+        } else {
+            $query->whereNotNull('released_at');
+        }
+
+        $notified = 0;
+
+        $query->select(['id'])->chunkById(100, function ($items) use (&$notified): void {
+            foreach ($items as $item) {
+                $claimed = DB::transaction(function () use ($item): ?PayrollRunItem {
+                    $candidate = PayrollRunItem::query()
+                        ->whereKey($item->id)
+                        ->whereNull('release_notified_at')
+                        ->with('run:id,status,superseded_at')
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($candidate === null
+                        || ! $candidate->isReleased()
+                        || $candidate->run?->getAttribute('superseded_at') !== null) {
+                        return null;
+                    }
+
+                    $candidate->update(['release_notified_at' => now()]);
+
+                    return $candidate;
+                }, 3);
+
+                if ($claimed === null) {
+                    continue;
+                }
+
+                self::notifyReleasedPayslip($claimed);
+                $notified++;
+            }
+        });
+
+        return $notified;
+    }
+
+    /**
+     * Remind every active user allowed to run payroll that an early attendance
+     * preview is now ready to be recalculated. One reminder is kept per user,
+     * run, and cut-off so repeated scheduler passes stay quiet.
+     */
+    public static function payrollAttendanceCutOffReady(PayrollRun $run, string $cutOff): int
+    {
+        $recipients = User::query()
+            ->where('tenant_id', $run->tenant_id)
+            ->where('status', 'active')
+            ->with(['roles.permissions', 'permissionOverrides'])
+            ->get()
+            ->filter(fn (User $user): bool => $user->roles->contains(
+                fn ($role): bool => in_array($role->code, ['super_admin', 'admin_tenant_hr'], true),
+            ) || $user->hasPermissionTo('payroll.create'))
+            ->pluck('id')
+            ->reject(fn (int $userId): bool => Notification::query()
+                ->where('tenant_id', $run->tenant_id)
+                ->where('user_id', $userId)
+                ->where('type', 'payroll_attendance_cutoff')
+                ->where('data->payroll_run_id', $run->id)
+                ->where('data->cut_off', $cutOff)
+                ->exists())
+            ->values();
+
+        if ($recipients->isEmpty()) {
+            return 0;
+        }
+
+        $periodName = $run->period?->name ?? 'periode payroll';
+        $title = 'Payroll siap dihitung ulang';
+        $body = 'Cut-off kehadiran '.$periodName.' sudah lewat. Jalankan ulang payroll agar tunjangan per hari hadir masuk sebelum approval.';
+
+        self::insertMany($recipients->map(fn (int $userId): array => [
+            'tenant_id' => (int) $run->tenant_id,
+            'user_id' => $userId,
+            'type' => 'payroll_attendance_cutoff',
+            'title' => $title,
+            'body' => $body,
+            'data' => [
+                'link' => ['type' => 'payroll', 'id' => $run->payroll_period_id],
+                'event' => 'attendance_cutoff_closed',
+                'payroll_run_id' => $run->id,
+                'payroll_period_id' => $run->payroll_period_id,
+                'cut_off' => $cutOff,
+            ],
+        ])->all());
+
+        app(FcmService::class)->pushToUsers(
+            $recipients->all(),
+            $title,
+            $body,
+            ['type' => 'payroll', 'id' => $run->payroll_period_id],
+        );
+
+        return $recipients->count();
+    }
+
+    /** Notify one claimed payslip through the in-app, push, and email channels. */
+    private static function notifyReleasedPayslip(PayrollRunItem $item): void
+    {
+        $employee = Employee::query()->find($item->employee_id, ['id', 'user_id', 'tenant_id', 'email', 'full_name']);
+
+        if ($employee?->user_id !== null) {
+            $row = [
+                'tenant_id' => (int) $item->tenant_id,
+                'user_id' => (int) $employee->user_id,
                 'type' => 'payslip',
                 'title' => 'Slip gaji tersedia',
                 'body' => 'Slip gaji Anda sudah dapat dilihat dan diunduh.',
                 'data' => ['link' => ['type' => 'payslip', 'id' => $item->id]],
-            ])
-            ->values()
-            ->all();
+            ];
 
-        self::insertMany($rows);
-
-        if ($rows !== []) {
+            self::insertMany([$row]);
             app(FcmService::class)->pushToUsers(
-                array_column($rows, 'user_id'),
+                [$row['user_id']],
                 'Slip gaji tersedia',
                 'Slip gaji Anda sudah dapat dilihat dan diunduh.',
-                ['type' => 'payslip', 'id' => 0],
+                ['type' => 'payslip', 'id' => $item->id],
             );
         }
 
-        foreach ($items as $item) {
-            $employee = $item->employee;
-
-            if ($employee === null || blank($employee->email)) {
-                continue;
-            }
-
-            SendBrandedNotificationJob::dispatch(
-                (int) $item->tenant_id,
-                $employee->email,
-                $employee->full_name,
-                BrandedNotification::make(
-                    tenantId: (int) $item->tenant_id,
-                    subjectLine: 'Slip Gaji Tersedia',
-                    heading: 'Slip gaji Anda sudah tersedia',
-                    paragraphs: ['Slip gaji Anda untuk periode ini sudah dapat dilihat dan diunduh melalui aplikasi AvanaHR.'],
-                    greetingName: $employee->full_name,
-                ),
-            );
+        if ($employee === null || blank($employee->email)) {
+            return;
         }
+
+        SendBrandedNotificationJob::dispatch(
+            (int) $item->tenant_id,
+            $employee->email,
+            $employee->full_name,
+            BrandedNotification::make(
+                tenantId: (int) $item->tenant_id,
+                subjectLine: 'Slip Gaji Tersedia',
+                heading: 'Slip gaji Anda sudah tersedia',
+                paragraphs: ['Slip gaji Anda untuk periode ini sudah dapat dilihat dan diunduh melalui aplikasi AvanaHR.'],
+                greetingName: $employee->full_name,
+            ),
+        );
     }
 
     // ── Platform (super admin) billing notifications ─────────────────────

@@ -26,7 +26,7 @@ class EssPayslipController extends Controller
         $employee = $this->currentEmployee($request);
 
         // Only finalised runs — a payslip from a run still being reviewed is a
-        // figure the employee may not be paid — and only from H-3 before the
+        // figure the employee may not be paid — and only from H-1 before the
         // pay date, which is when the company hands the slip over.
         $items = PayrollRunItem::forTenant($employee->tenant_id)
             ->where('employee_id', $employee->id)
@@ -94,7 +94,7 @@ class EssPayslipController extends Controller
             'tax' => (int) round((float) $item->pph21_total),
             'bpjs_employee' => (int) round((float) $item->bpjs_employee_total),
             'net' => (int) round((float) $item->net_salary),
-            'issued_at' => $item->created_at?->toDateString(),
+            'issued_at' => $item->issuedDate(),
         ];
     }
 

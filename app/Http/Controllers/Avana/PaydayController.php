@@ -143,7 +143,7 @@ class PaydayController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'pay_mode' => ['required', Rule::in(['date', 'end_of_month'])],
             'pay_day' => ['nullable', 'integer', 'min:1', 'max:31', 'required_if:pay_mode,date'],
-            'cut_off_start_day' => ['nullable', 'integer', 'min:1', 'max:31'],
+            'cut_off_start_day' => ['nullable', 'integer', 'min:1', 'max:31', 'required_with:cut_off_end_day'],
             'cut_off_end_day' => [
                 'nullable', 'integer', 'min:1', 'max:31', 'required_with:cut_off_start_day',
                 $this->closesBeforePayday($request),
@@ -152,6 +152,7 @@ class PaydayController extends Controller
             'is_active' => ['required', 'boolean'],
         ], [
             'pay_day.required_if' => 'Tanggal pembayaran wajib diisi untuk mode tanggal tetap.',
+            'cut_off_start_day.required_with' => 'Cut-off harus punya tanggal awal dan akhir.',
             'cut_off_end_day.required_with' => 'Cut-off harus punya tanggal awal dan akhir.',
         ]);
 

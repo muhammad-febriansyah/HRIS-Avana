@@ -194,7 +194,7 @@ final class AiToolkit
 
                 // Same rule as the payslip screens: only a locked run's figures
                 // are the employee's, and only once the slip has been released
-                // at H-3, so the assistant cannot read out a draft or a number
+                // at H-1, so the assistant cannot read out a draft or a number
                 // the employee is not meant to have yet.
                 $item = PayrollRunItem::where('tenant_id', $this->tenantId())
                     ->where('employee_id', $employee->id)

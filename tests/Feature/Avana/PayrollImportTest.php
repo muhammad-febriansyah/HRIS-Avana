@@ -3,6 +3,7 @@
 use App\Imports\PayrollImportRowsImport;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
+use App\Models\Payday;
 use App\Models\PayrollComponent;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
@@ -73,6 +74,35 @@ it('writes the uploaded numbers into the period run', function (): void {
     expect((float) $run->total_net)->toBe(9_050_000.0);
     expect($run->employee_count)->toBe(1);
     expect($run->status)->toBe('calculated');
+});
+
+it('uses the employee payday group when scheduling an imported payslip release', function (): void {
+    $payday = Payday::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'PD-IMPOR',
+        'name' => 'Payroll Impor',
+        'pay_mode' => 'date',
+        'pay_day' => 25,
+        'cut_off_start_day' => 21,
+        'cut_off_end_day' => 20,
+        'is_active' => true,
+    ]);
+
+    $this->employee->update(['payday_id' => $payday->id]);
+    $this->period->update(['pay_date' => '2026-05-10']);
+
+    actingAs($this->admin)->post(route('avana.payroll.impor.store'), [
+        'payroll_period_id' => $this->period->id,
+        'file' => payrollCsv("{$this->employee->employee_number},x,10000000,0,0,0,0,0,\n"),
+    ])->assertSessionHasNoErrors();
+
+    $item = PayrollRunItem::where('payroll_period_id', $this->period->id)
+        ->where('employee_id', $this->employee->id)
+        ->firstOrFail();
+
+    // The group pays 25 May, so H-1 is 24 May. The period pay date is only
+    // a fallback and would incorrectly release this imported slip on 9 May.
+    expect($item->released_at?->toDateString())->toBe('2026-05-24');
 });
 
 it('keeps an explicit take home pay instead of deriving one', function (): void {

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Avana\PayrollController;
+use App\Models\Attendance;
 use App\Models\BpjsRate;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
@@ -80,6 +81,48 @@ it('scales a per_present_day component by the present day count', function (): v
     expect((float) $earnings->firstWhere('name', 'Tunjangan Makan')['amount'])->toBe(25_000.0 * $presentDays);
 });
 
+it('counts one present day only once when attendance has multiple shift rows', function (): void {
+    configureComponent($this->employee, 'TJ-MKN', 'per_present_day', 25_000);
+    $date = $this->period->start_date->toDateString();
+
+    Attendance::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'branch_id' => $this->employee->branch_id,
+        'date' => $date,
+        'status' => 'present',
+    ]);
+    Attendance::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'branch_id' => $this->employee->branch_id,
+        'date' => $date,
+        'status' => 'late',
+    ]);
+
+    $snapshot = runAndItem($this)->calculation_snapshot;
+
+    expect((int) $snapshot['present_days'])->toBe(1);
+    expect((float) collect($snapshot['earnings'])->firstWhere('name', 'Tunjangan Makan')['amount'])
+        ->toBe(25_000.0);
+});
+
+it('does not prorate an attendance rate a second time', function (): void {
+    $component = configureComponent($this->employee, 'TJ-MKN', 'per_present_day', 25_000);
+    $master = SalaryMaster::findOrFail($this->employee->salary_master_id);
+    $master->update(['day_calc_method' => 'absen', 'day_divisor' => 22]);
+    $master->components()
+        ->where('payroll_component_id', $component->id)
+        ->update(['is_prorate' => true]);
+    seedPresentDays($this->tenant->id, $this->employee, $this->period, 10);
+
+    $snapshot = runAndItem($this)->calculation_snapshot;
+
+    expect((int) $snapshot['present_days'])->toBe(10);
+    expect((float) collect($snapshot['earnings'])->firstWhere('name', 'Tunjangan Makan')['amount'])
+        ->toBe(250_000.0);
+});
+
 it('holds a per_present_day component back while the attendance cut-off is still open', function (): void {
     configureComponent($this->employee, 'TJ-MKN', 'per_present_day', 25_000);
     seedPresentDays($this->tenant->id, $this->employee, $this->period, 10);
@@ -109,7 +152,7 @@ it('pays the per_present_day component on the run made after the cut-off', funct
         ->toBe(25_000.0 * $presentDays);
 });
 
-it('stamps the payslip release date at H-3 before the employee payday group pays', function (): void {
+it('stamps the payslip release date at H-1 before the employee payday group pays', function (): void {
     configureComponent($this->employee, 'BASIC', 'fixed', 5_000_000);
 
     // The group's own pay date, not the period's — two groups in one period are
@@ -129,8 +172,8 @@ it('stamps the payslip release date at H-3 before the employee payday group pays
 
     $item = runAndItem($this);
 
-    // Payday group pays 25 Jun; the slip is handed over on the 22nd.
-    expect($item->released_at?->toDateString())->toBe('2026-06-22');
+    // Payday group pays 25 Jun; the slip is handed over on the 24th.
+    expect($item->released_at?->toDateString())->toBe('2026-06-24');
 });
 
 it('falls back to the period pay date when the employee has no payday group', function (): void {
@@ -139,7 +182,7 @@ it('falls back to the period pay date when the employee has no payday group', fu
     $this->employee->update(['payday_id' => null]);
     $this->period->update(['pay_date' => '2026-06-25']);
 
-    expect(runAndItem($this)->released_at?->toDateString())->toBe('2026-06-22');
+    expect(runAndItem($this)->released_at?->toDateString())->toBe('2026-06-24');
 });
 
 it('leaves the release date empty when no pay date is known', function (): void {
@@ -152,7 +195,7 @@ it('leaves the release date empty when no pay date is known', function (): void 
     expect(runAndItem($this)->released_at)->toBeNull();
 });
 
-it('refuses to lock a period whose attendance allowance is still waiting', function (): void {
+it('refuses to approve or lock a period whose attendance allowance is still waiting', function (): void {
     configureComponent($this->employee, 'BASIC', 'fixed', 5_000_000);
     configureComponent($this->employee, 'TJ-MKN', 'per_present_day', 25_000);
     seedPresentDays($this->tenant->id, $this->employee, $this->period, 10);
@@ -165,16 +208,24 @@ it('refuses to lock a period whose attendance allowance is still waiting', funct
     openAttendanceWindow($this);
 
     actingAs($this->admin)->post('spec-calc/payroll/run')->assertSessionHas('success');
-    actingAs($this->admin)->post('spec-calc/payroll/approve')->assertSessionHas('success');
+    actingAs($this->admin)->post('spec-calc/payroll/approve')->assertSessionHasErrors('payroll');
+    expect(session('errors')->first('payroll'))->toContain('belum dapat dihitung sebelum cut-off kehadiran');
 
-    // Locking here would close the period on a payslip that never gets the
-    // allowance line at all.
+    // Keep lock as a second line of defence for an older run that may already
+    // have been approved before this approval gate existed.
+    PayrollRun::forTenant($this->tenant->id)
+        ->where('payroll_period_id', $this->period->id)
+        ->current()
+        ->update(['status' => PayrollRun::STATUS_APPROVED]);
     actingAs($this->admin)->post('spec-calc/payroll/lock')->assertSessionHasErrors('payroll');
     expect(session('errors')->first('payroll'))->toContain('cut-off kehadiran');
 
-    // Past the cut-off the recompute generates it and the period closes.
+    // Merely waiting is insufficient: the stale snapshot must still be rerun.
     $this->travelTo($this->period->end_date->copy()->addDay());
+    actingAs($this->admin)->post('spec-calc/payroll/approve')->assertSessionHasErrors('payroll');
+    expect(session('errors')->first('payroll'))->toContain('sudah lewat');
 
+    // Past the cut-off the recompute generates it and the period closes.
     actingAs($this->admin)->post('spec-calc/payroll/run')->assertSessionHas('success');
     actingAs($this->admin)->post('spec-calc/payroll/approve')->assertSessionHas('success');
     actingAs($this->admin)->post('spec-calc/payroll/lock')->assertSessionHas('success');
@@ -196,6 +247,33 @@ it('says on the sample slip why the attendance allowance is not there yet', func
             ->where('slip.notice', fn (?string $notice): bool => $notice !== null
                 && str_contains($notice, 'Tunjangan Makan')
                 && str_contains($notice, 'cut-off')));
+});
+
+it('tells the payroll page which cut-off the preview is still waiting on', function (): void {
+    configureComponent($this->employee, 'BASIC', 'fixed', 5_000_000);
+    configureComponent($this->employee, 'TJ-MKN', 'per_present_day', 25_000);
+    seedPresentDays($this->tenant->id, $this->employee, $this->period, 10);
+
+    Route::middleware('web')->get('spec-calc/payroll', [PayrollController::class, 'index']);
+
+    openAttendanceWindow($this);
+    actingAs($this->admin)->post('spec-calc/payroll/run')->assertSessionHas('success');
+
+    actingAs($this->admin)
+        ->get('spec-calc/payroll')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('pending_attendance_cut_off', $this->period->end_date->toDateString()));
+
+    // Recomputed past the cut-off there is nothing left to wait for, so the
+    // banner disappears rather than nagging about a settled run.
+    $this->travelTo($this->period->end_date->copy()->addDay());
+    actingAs($this->admin)->post('spec-calc/payroll/run')->assertSessionHas('success');
+
+    actingAs($this->admin)
+        ->get('spec-calc/payroll')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('pending_attendance_cut_off', null));
 });
 
 it('uses the assigned per-day rate snapshot after the master rate changes', function (): void {

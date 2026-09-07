@@ -29,6 +29,20 @@ Schedule::command('avana:scan-attrition-alerts')->dailyAt('07:30');
 // them at half past ten.
 Schedule::command('avana:remind-attendance')->hourlyAt(30);
 
+// A payroll may be locked before employees are allowed to see its slips. Scan
+// hourly so each H-1 release is announced only once, near the start of the day.
+Schedule::command('avana:notify-released-payslips')
+    ->hourly()
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// Once the latest attendance cut-off in an early payroll preview has passed,
+// remind HR to recalculate. The scheduler never changes payroll figures itself.
+Schedule::command('avana:remind-payroll-attendance-cutoff')
+    ->hourly()
+    ->withoutOverlapping()
+    ->onOneServer();
+
 // Open the year's leave balances. Daily rather than once on 1 January so a
 // tenant onboarded mid-year, or one whose leave types were set up late, still
 // gets its rows without anyone remembering to run the command. Existing rows —

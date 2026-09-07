@@ -103,6 +103,12 @@ export interface PayrollProps {
     slip: Slip;
     /** The shown run predates the tenant's latest payroll-config edit. */
     stale_run: boolean;
+    /**
+     * The attendance cut-off date the shown run still waits on, when it carries
+     * per-present-day allowances that could not be counted yet. Null once every
+     * allowance is settled. Approval and locking are refused while it is set.
+     */
+    pending_attendance_cut_off: string | null;
     /** Setup steps in documentation order, marked done from tenant data. */
     checklist: ChecklistStep[];
     /** Active employees selectable for the slip preview. */

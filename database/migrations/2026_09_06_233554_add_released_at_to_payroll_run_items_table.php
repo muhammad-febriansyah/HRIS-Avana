@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * When a payslip becomes readable by the employee it belongs to: H-3 before
+ * When a payslip becomes readable by the employee it belongs to: H-1 before
  * their own pay date.
  *
  * Stored per row rather than derived at read time, because the pay date is the

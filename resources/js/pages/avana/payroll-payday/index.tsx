@@ -78,6 +78,30 @@ const label: React.CSSProperties = {
     display: 'block',
 };
 
+/**
+ * The server's message for one field, under the field it belongs to. Without it
+ * a rejected cut-off only produced a toast that named no field at all.
+ */
+function FieldError({ message }: { message?: string }) {
+    if (!message) {
+        return null;
+    }
+
+    return (
+        <span
+            style={{
+                display: 'block',
+                marginTop: 5,
+                fontSize: 11.5,
+                lineHeight: 1.45,
+                color: C.red,
+            }}
+        >
+            {message}
+        </span>
+    );
+}
+
 export default function PayrollPayday({ paydays, employees }: Props) {
     const [selected, setSelected] = useState<number[]>([]);
     const [target, setTarget] = useState<string>('');
@@ -100,7 +124,12 @@ export default function PayrollPayday({ paydays, employees }: Props) {
                 toast.success('Kelompok payday dibuat');
                 form.reset('code', 'name', 'description');
             },
-            onError: () => toast.error('Periksa isian kelompok payday'),
+            // The server says which field and why; repeating that beats a
+            // generic "periksa isian" the reader still has to decode.
+            onError: (errors) =>
+                toast.error(
+                    Object.values(errors)[0] ?? 'Periksa isian kelompok payday',
+                ),
         });
 
     const del = (id: number) =>
@@ -182,6 +211,7 @@ export default function PayrollPayday({ paydays, employees }: Props) {
                                 value={form.data.code}
                                 onChange={(e) => form.setData('code', e.target.value)}
                             />
+                            <FieldError message={form.errors.code} />
                         </div>
                         <div>
                             <span style={label}>Nama kelompok</span>
@@ -191,6 +221,7 @@ export default function PayrollPayday({ paydays, employees }: Props) {
                                 value={form.data.name}
                                 onChange={(e) => form.setData('name', e.target.value)}
                             />
+                            <FieldError message={form.errors.name} />
                         </div>
                         <div>
                             <span style={label}>Payday</span>
@@ -214,6 +245,7 @@ export default function PayrollPayday({ paydays, employees }: Props) {
                                 value={form.data.pay_mode === 'end_of_month' ? '' : form.data.pay_day}
                                 onChange={(e) => form.setData('pay_day', e.target.value)}
                             />
+                            <FieldError message={form.errors.pay_day} />
                         </div>
                         <div>
                             <span style={label}>Cut-off dari</span>
@@ -222,9 +254,11 @@ export default function PayrollPayday({ paydays, employees }: Props) {
                                 type="number"
                                 min={1}
                                 max={31}
+                                data-test="payday-cut-off-start"
                                 value={form.data.cut_off_start_day}
                                 onChange={(e) => form.setData('cut_off_start_day', e.target.value)}
                             />
+                            <FieldError message={form.errors.cut_off_start_day} />
                         </div>
                         <div>
                             <span style={label}>s.d.</span>
@@ -233,9 +267,11 @@ export default function PayrollPayday({ paydays, employees }: Props) {
                                 type="number"
                                 min={1}
                                 max={31}
+                                data-test="payday-cut-off-end"
                                 value={form.data.cut_off_end_day}
                                 onChange={(e) => form.setData('cut_off_end_day', e.target.value)}
                             />
+                            <FieldError message={form.errors.cut_off_end_day} />
                         </div>
                         <button
                             style={{ ...primaryBtn, background: C.green }}

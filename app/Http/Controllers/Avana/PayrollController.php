@@ -223,6 +223,9 @@ class PayrollController extends Controller
                 ->map(fn (Employee $employee): array => ['id' => $employee->id, 'name' => $employee->full_name])
                 ->all(),
             'stale_run' => $this->runIsStale($tenantId, $selectedRun),
+            'pending_attendance_cut_off' => $selectedRun !== null
+                ? $this->deferredAttendanceCutOff($selectedRun, $tenantId)
+                : null,
             'checklist' => $this->setupChecklist($tenantId),
             'filters' => $request->only(['search', 'status', 'per_page', 'period', 'scheme', 'only_paid', 'slip_employee']),
         ]);
@@ -379,7 +382,7 @@ class PayrollController extends Controller
 
         $period = $run->period ?? PayrollPeriod::find($run->payroll_period_id);
 
-        foreach ($this->payrollInputChanges($tenantId, $period) as $label => $changedAt) {
+        foreach ($this->payrollInputChanges($tenantId, $period, $run) as $label => $changedAt) {
             if ($changedAt !== null && $changedAt > $computedAt) {
                 return $label;
             }
@@ -394,7 +397,7 @@ class PayrollController extends Controller
      *
      * @return array<string, string|null>
      */
-    private function payrollInputChanges(int $tenantId, ?PayrollPeriod $period): array
+    private function payrollInputChanges(int $tenantId, ?PayrollPeriod $period, ?PayrollRun $run = null): array
     {
         $changes = ['konfigurasi payroll (komponen, Master Gaji, gaji karyawan, lembur, denda, payday, BPJS)' => $this->latestConfigChangeAt($tenantId, $period)];
 
@@ -405,13 +408,18 @@ class PayrollController extends Controller
             return $changes;
         }
 
+        [$attendanceStart, $attendanceEnd] = $this->attendanceInputWindow($run, $start, $end);
+
         $between = fn (string $table, string $column) => DB::table($table)
             ->where('tenant_id', $tenantId)
             ->whereBetween($column, [$start, $end])
             ->max('updated_at');
 
         return $changes + [
-            'data kehadiran di periode ini' => $between('attendances', 'date'),
+            'data kehadiran di periode ini' => DB::table('attendances')
+                ->where('tenant_id', $tenantId)
+                ->whereBetween('date', [$attendanceStart, $attendanceEnd])
+                ->max('updated_at'),
             'pengajuan lembur di periode ini' => $between('overtime_requests', 'date'),
             'koreksi gaji di periode ini' => $between('payroll_corrections', 'correction_date'),
             'rapel di periode ini' => $between('salary_rapels', 'posting_date'),
@@ -423,6 +431,45 @@ class PayrollController extends Controller
                 ->where('tenant_id', $tenantId)
                 ->max('updated_at'),
         ];
+    }
+
+    /**
+     * The widest attendance window frozen into this run's employee snapshots.
+     *
+     * A payday or Master Gaji cut-off may begin in the previous month, outside
+     * the payroll period itself. A correction in that part of the window must
+     * still make the run stale before it can be approved or locked.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function attendanceInputWindow(?PayrollRun $run, string $periodStart, string $periodEnd): array
+    {
+        $starts = [$periodStart];
+        $ends = [$periodEnd];
+
+        if ($run === null) {
+            return [$periodStart, $periodEnd];
+        }
+
+        $items = PayrollRunItem::where('payroll_run_id', $run->id)->get(['calculation_snapshot']);
+
+        foreach ($items as $item) {
+            $snapshot = $item->calculation_snapshot ?? [];
+            $cutOff = $snapshot['attendance_cut_off'] ?? [];
+            $window = $snapshot['payday']['window'] ?? [];
+            $start = $cutOff['start'] ?? $window[0] ?? null;
+            $end = $cutOff['end'] ?? $window[1] ?? null;
+
+            if (is_string($start) && $start !== '') {
+                $starts[] = $start;
+            }
+
+            if (is_string($end) && $end !== '') {
+                $ends[] = $end;
+            }
+        }
+
+        return [min($starts), max($ends)];
     }
 
     /**
@@ -716,7 +763,7 @@ class PayrollController extends Controller
     }
 
     /**
-     * When this payslip may be read by the employee: H-3 before the pay date.
+     * When this payslip may be read by the employee: H-1 before the pay date.
      *
      * The employee's Mapping Payday group answers first — two groups in one
      * period are paid on different days, so the period's single pay date cannot
@@ -849,7 +896,12 @@ class PayrollController extends Controller
         // Two periods covering the same day would each pick up the attendance,
         // overtime, corrections and rapel dated in the overlap — the same work
         // paid twice, in two different payslips.
+        //
+        // THR is exempt: it reads none of those, and its period deliberately
+        // spans the whole year. Counting it here made a tenant that had once
+        // generated THR unable to create any regular period at all.
         $overlapping = PayrollPeriod::forTenant($tenantId)
+            ->regular()
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
             ->whereDate('start_date', '<=', $data['end_date'])
@@ -926,7 +978,7 @@ class PayrollController extends Controller
         // Compute every employee's monthly bruto against the latest regular
         // (non-THR) period; fall back to the THR period when none exists.
         $basePeriod = PayrollPeriod::forTenant($tenantId)
-            ->where('code', 'not like', 'THR-%')
+            ->regular()
             ->orderByDesc('start_date')
             ->first();
 
@@ -939,6 +991,7 @@ class PayrollController extends Controller
                 ['tenant_id' => $tenantId, 'code' => 'THR-'.$year],
                 [
                     'name' => 'THR '.$year,
+                    'type' => PayrollPeriod::TYPE_THR,
                     'start_date' => $year.'-01-01',
                     'end_date' => $year.'-12-31',
                     'pay_date' => $asOf->toDateString(),
@@ -1098,7 +1151,7 @@ class PayrollController extends Controller
             ->when(
                 $periodId !== null && $periodId !== '',
                 fn ($query) => $query->where('payroll_period_id', (int) $periodId),
-                fn ($query) => $query->whereHas('period', fn ($q) => $q->where('code', 'not like', 'THR-%')),
+                fn ($query) => $query->whereHas('period', fn ($q) => $q->regular()),
             )
             ->orderByDesc('id')
             ->with(['period', 'items.employee.bankAccounts'])
@@ -1112,7 +1165,7 @@ class PayrollController extends Controller
         }
 
         $periodCode = $run->period?->code ?? 'run-'.$run->id;
-        $note = (str_starts_with($periodCode, 'THR-') ? 'THR ' : 'Gaji ').($run->period?->name ?? $periodCode);
+        $note = ($run->period?->isThr() === true ? 'THR ' : 'Gaji ').($run->period?->name ?? $periodCode);
 
         // The generic layout is the sheet finance reads and forwards, so it goes
         // out as a proper document. The per-bank layouts stay bare CSV: an
@@ -1207,7 +1260,7 @@ class PayrollController extends Controller
         $tenantId = $request->user()->tenant_id;
 
         $run = PayrollRun::forTenant($tenantId)
-            ->whereHas('period', fn ($query) => $query->where('code', 'not like', 'THR-%'))
+            ->whereHas('period', fn ($query) => $query->regular())
             ->orderByDesc('id')
             ->with(['period', 'items.employee'])
             ->first();
@@ -1541,6 +1594,19 @@ class PayrollController extends Controller
                 ]);
             }
 
+            $cutOff = $this->deferredAttendanceCutOff($run, $tenantId);
+
+            if ($cutOff !== null) {
+                $cutOffDate = Carbon::parse($cutOff);
+                $message = $cutOffDate->endOfDay()->isPast()
+                    ? 'Cut-off kehadiran sudah lewat, tetapi tunjangan per hari hadir belum dihitung. Jalankan ulang payroll sebelum menyetujui.'
+                    : 'Tunjangan per hari hadir belum dapat dihitung sebelum cut-off kehadiran ('
+                        .$cutOffDate->translatedFormat('d F Y')
+                        .'). Jalankan ulang payroll setelah tanggal itu sebelum menyetujui.';
+
+                throw ValidationException::withMessages(['payroll' => $message]);
+            }
+
             // An imported payroll never passed the engine's checks, so signing
             // it off is a statement about somebody else's figures: it needs a
             // note saying the reconciliation was read.
@@ -1712,7 +1778,7 @@ class PayrollController extends Controller
     private function resolveTargetPeriod(int $tenantId, bool $lock = false): ?PayrollPeriod
     {
         $query = PayrollPeriod::forTenant($tenantId)
-            ->where('code', 'not like', 'THR-%')
+            ->regular()
             ->where('status', 'draft')
             ->orderByDesc('start_date');
 
@@ -1723,7 +1789,7 @@ class PayrollController extends Controller
         }
 
         $query = PayrollPeriod::forTenant($tenantId)
-            ->where('code', 'not like', 'THR-%')
+            ->regular()
             ->orderByDesc('start_date');
 
         $period = $query->first();
@@ -2226,7 +2292,7 @@ class PayrollController extends Controller
      *     deduction: float,
      *     net: float,
      *     present_days: int,
-     *     attendance_cut_off: array{end: string|null, settled: bool, deferred: list<string>},
+     *     attendance_cut_off: array{start: string|null, end: string|null, settled: bool, deferred: list<string>},
      *     basic: float,
      * }
      */
@@ -2276,7 +2342,8 @@ class PayrollController extends Controller
                 ->where('employee_id', $employee->id)
                 ->whereBetween('date', $attendanceRange)
                 ->whereIn('status', ['present', 'late'])
-                ->count();
+                ->distinct()
+                ->count('date');
 
             $overtimeRecords = OvertimeRequest::forTenant($tenantId)
                 ->where('employee_id', $employee->id)
@@ -2455,10 +2522,10 @@ class PayrollController extends Controller
                 // Perhitungan Hari factor; otherwise a fixed monthly component is
                 // still prorated by the mid-period (join/resign) factor below, and
                 // per-day/per-hour components are already scaled by their count.
-                $proratable = ! $masterComponent->is_prorate
-                    && ! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true);
+                $attendanceBased = in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true);
+                $proratable = ! $masterComponent->is_prorate && ! $attendanceBased;
 
-                if ($masterComponent->is_prorate && $masterProrateFactor !== null) {
+                if ($masterComponent->is_prorate && ! $attendanceBased && $masterProrateFactor !== null) {
                     $amount = round($amount * $masterProrateFactor);
                     $proratable = false;
                 }
@@ -2734,6 +2801,7 @@ class PayrollController extends Controller
             // Which cut-off the per-day attendance allowance waits for, whether
             // it has closed, and the component lines held back while it has not.
             'attendance_cut_off' => [
+                'start' => $attendanceRange[0] ?? null,
                 'end' => $attendanceCutOffEnd,
                 'settled' => $attendanceCutOffPassed,
                 'deferred' => array_values(array_unique($deferredAttendance)),
