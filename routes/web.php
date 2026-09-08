@@ -10,11 +10,14 @@ use App\Http\Controllers\PrivacyPolicyController;
 use App\Http\Controllers\PrivateFileController;
 use App\Http\Controllers\PublicNewsController;
 use App\Http\Controllers\ReferralLeadController;
+use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TermsOfServiceController;
 use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', WelcomeController::class)->name('home');
+
+Route::get('sitemap.xml', SitemapController::class)->name('sitemap');
 
 /*
  * Public marketing page for the Live Tracking feature. Static like the landing
