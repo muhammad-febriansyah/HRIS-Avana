@@ -12,6 +12,16 @@
         })(window,document,'script','dataLayer','GTM-PRJN9ZM7');</script>
         <!-- End Google Tag Manager -->
 
+        <!-- Google tag (gtag.js) -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-XQPZWDQPGJ"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+
+            gtag('config', 'G-XQPZWDQPGJ');
+        </script>
+
         {{-- AvanaHR is light-only. Force the light surface background before paint. --}}
         <style>
             html {
