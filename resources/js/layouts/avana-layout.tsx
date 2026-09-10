@@ -1078,19 +1078,24 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                         <DropdownMenuContent align="end" className="w-52">
                             <DropdownMenuItem asChild>
                                 <Link
-                                    href={
-                                        page.props.auth?.isSuperAdmin
-                                            ? WebsiteSettingController.edit()
-                                            : editProfile()
-                                    }
+                                    href={editProfile()}
                                     className="cursor-pointer"
                                 >
-                                    <AIcon name="settings" size={15} />
-                                    {page.props.auth?.isSuperAdmin
-                                        ? 'Pengaturan'
-                                        : 'Edit Profil'}
+                                    <AIcon name="user" size={15} />
+                                    Edit Profil
                                 </Link>
                             </DropdownMenuItem>
+                            {page.props.auth?.isSuperAdmin && (
+                                <DropdownMenuItem asChild>
+                                    <Link
+                                        href={WebsiteSettingController.edit()}
+                                        className="cursor-pointer"
+                                    >
+                                        <AIcon name="settings" size={15} />
+                                        Pengaturan
+                                    </Link>
+                                </DropdownMenuItem>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem asChild>
                                 <Link

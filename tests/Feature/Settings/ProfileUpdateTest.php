@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Employee;
+use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -20,6 +21,23 @@ test('profile page is displayed', function () {
             // password confirmation, so they must not ship with the page.
             ->missing('twoFactorSecretKey')
             ->missing('twoFactorRecoveryCodes'));
+});
+
+test('super admins can open the profile settings page', function () {
+    $role = Role::create([
+        'code' => 'super_admin',
+        'name' => 'Super Admin',
+        'is_system' => true,
+    ]);
+    $user = User::factory()->create(['tenant_id' => null]);
+    $user->roles()->attach($role);
+
+    $this->actingAs($user)
+        ->get(route('profile.edit'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('settings/profile')
+            ->where('auth.isSuperAdmin', true));
 });
 
 test('the security panels ride along once the password was confirmed', function () {
