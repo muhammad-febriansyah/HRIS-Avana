@@ -34,6 +34,29 @@ class SitemapController extends Controller
             ['loc' => URL::route('terms'), 'changefreq' => 'yearly', 'priority' => '0.3'],
         ];
 
+        foreach (FeaturePageController::FEATURE_SLUGS as $featureSlug) {
+            $urls[] = [
+                'loc' => URL::route('features.show', ['featureSlug' => $featureSlug]),
+                'changefreq' => 'monthly',
+                'priority' => in_array($featureSlug, [
+                    'core-hr',
+                    'payroll',
+                    'absensi-karyawan',
+                    'cuti-dan-izin',
+                    'rekrutmen',
+                    'manajemen-kinerja',
+                    'live-tracking-karyawan',
+                    'hr-analytics',
+                ], true) ? '0.8' : '0.6',
+            ];
+        }
+
+        $urls[] = [
+            'loc' => URL::route('solution.crm'),
+            'changefreq' => 'monthly',
+            'priority' => '0.6',
+        ];
+
         News::query()
             ->where('status', 'published')
             ->latestFirst()

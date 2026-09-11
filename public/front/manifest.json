@@ -1,0 +1,122 @@
+[
+  {
+    "name": "Core HR",
+    "file": "core-hr.png",
+    "width": 555,
+    "height": 747
+  },
+  {
+    "name": "Attendance",
+    "file": "attendance.png",
+    "width": 579,
+    "height": 747
+  },
+  {
+    "name": "Payroll",
+    "file": "payroll.png",
+    "width": 573,
+    "height": 747
+  },
+  {
+    "name": "Leave & Cuti",
+    "file": "leave-cuti.png",
+    "width": 579,
+    "height": 747
+  },
+  {
+    "name": "Recruitment",
+    "file": "recruitment.png",
+    "width": 576,
+    "height": 747
+  },
+  {
+    "name": "Performance",
+    "file": "performance.png",
+    "width": 579,
+    "height": 747
+  },
+  {
+    "name": "Live Tracking",
+    "file": "live-tracking.png",
+    "width": 621,
+    "height": 747
+  },
+  {
+    "name": "Visiting Pekerjaan",
+    "file": "visiting-pekerjaan.png",
+    "width": 555,
+    "height": 759
+  },
+  {
+    "name": "Settlement",
+    "file": "settlement.png",
+    "width": 579,
+    "height": 759
+  },
+  {
+    "name": "CRM",
+    "file": "crm.png",
+    "width": 573,
+    "height": 759
+  },
+  {
+    "name": "AI Intelligence",
+    "file": "ai-intelligence.png",
+    "width": 579,
+    "height": 759
+  },
+  {
+    "name": "Workforce Analytics",
+    "file": "workforce-analytics.png",
+    "width": 576,
+    "height": 759
+  },
+  {
+    "name": "Prediksi Risiko Resign",
+    "file": "prediksi-risiko-resign.png",
+    "width": 579,
+    "height": 759
+  },
+  {
+    "name": "Rapat & Transkrip",
+    "file": "rapat-transkrip.png",
+    "width": 621,
+    "height": 759
+  },
+  {
+    "name": "HR Helpdesk",
+    "file": "hr-helpdesk.png",
+    "width": 555,
+    "height": 717
+  },
+  {
+    "name": "Mood Karyawan",
+    "file": "mood-karyawan.png",
+    "width": 660,
+    "height": 717
+  },
+  {
+    "name": "Ruang Kita",
+    "file": "ruang-kita.png",
+    "width": 570,
+    "height": 717
+  },
+  {
+    "name": "Pengumuman",
+    "file": "pengumuman.png",
+    "width": 681,
+    "height": 717
+  },
+  {
+    "name": "Survei Karyawan",
+    "file": "survei-karyawan.png",
+    "width": 789,
+    "height": 717
+  },
+  {
+    "name": "Kalender Acara",
+    "file": "kalender-acara.png",
+    "width": 861,
+    "height": 717
+  }
+]

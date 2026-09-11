@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\AiTokenReturnController;
 use App\Http\Controllers\Avana\DashboardController;
 use App\Http\Controllers\CompanyRegistrationController;
+use App\Http\Controllers\FeaturePageController;
 use App\Http\Controllers\PartnerDocumentController;
 use App\Http\Controllers\PartnerRegistrationController;
 use App\Http\Controllers\PrivacyPolicyController;
@@ -30,6 +31,13 @@ Route::inertia('live-tracking', 'public/live-tracking')->name('live-tracking');
  * Tracking — no controller, no data, nothing behind auth.
  */
 Route::inertia('keamanan', 'public/security')->name('security');
+
+Route::get('fitur/{featureSlug}', FeaturePageController::class)
+    ->whereIn('featureSlug', FeaturePageController::FEATURE_SLUGS)
+    ->name('features.show');
+Route::get('solusi/crm', FeaturePageController::class)
+    ->defaults('featureSlug', 'crm')
+    ->name('solution.crm');
 Route::get('partner', [PartnerDocumentController::class, 'partnership'])->name('partnership');
 Route::get('partner/company-profile/download', [PartnerDocumentController::class, 'download'])
     ->middleware('throttle:30,1')

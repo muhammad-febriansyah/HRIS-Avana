@@ -47,13 +47,20 @@ export function SectionHeading({
     description,
     align = 'center',
     id,
+    tone = 'default',
+    size = 'default',
 }: {
     eyebrow?: string;
     title: ReactNode;
     description?: ReactNode;
     align?: 'center' | 'left';
     id?: string;
+    tone?: 'default' | 'dark';
+    size?: 'default' | 'compact';
 }) {
+    const isDark = tone === 'dark';
+    const isCompact = size === 'compact';
+
     return (
         <Reveal
             className={
@@ -63,18 +70,22 @@ export function SectionHeading({
             }
         >
             {eyebrow && (
-                <span className="inline-flex items-center rounded-full border border-[#E2E9F6] bg-[#F4F7FD] px-3.5 py-1 text-[12px] font-semibold tracking-[0.08em] text-[#2F54C9] uppercase">
+                <span
+                    className={`inline-flex items-center rounded-full border px-3.5 py-1 text-[12px] font-semibold tracking-[0.08em] uppercase ${isDark ? 'border-white/15 bg-white/10 text-blue-200' : 'border-[#E2E9F6] bg-[#F4F7FD] text-[#2F54C9]'}`}
+                >
                     {eyebrow}
                 </span>
             )}
             <h2
                 id={id}
-                className="mt-4 text-[28px] leading-[1.15] font-bold tracking-[-0.02em] text-balance text-[#0E1A3A] sm:text-4xl lg:text-[42px]"
+                className={`mt-4 font-bold tracking-[-0.02em] text-balance ${isCompact ? 'text-[26px] leading-[1.2] sm:text-3xl lg:text-[38px]' : 'text-[28px] leading-[1.15] sm:text-4xl lg:text-[42px]'} ${isDark ? 'text-white' : 'text-[#0E1A3A]'}`}
             >
                 {title}
             </h2>
             {description && (
-                <p className="mt-4 text-[15px] leading-relaxed text-pretty text-[#5B6478] sm:text-[17px]">
+                <p
+                    className={`mt-4 text-pretty ${isCompact ? 'text-[14px] leading-7 sm:text-base' : 'text-[15px] leading-relaxed sm:text-[17px]'} ${isDark ? 'text-blue-100/80' : 'text-[#5B6478]'}`}
+                >
                     {description}
                 </p>
             )}

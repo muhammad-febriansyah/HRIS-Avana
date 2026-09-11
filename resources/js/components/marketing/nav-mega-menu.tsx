@@ -1,7 +1,10 @@
+import { Link } from '@inertiajs/react';
 import { ArrowRight, ChevronDown } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { show as featureShow } from '@/routes/features';
+import { crm as solutionCrm } from '@/routes/solution';
 import { SOLUTIONS } from './content';
 import type { Solution } from './content';
 import { MODULES } from './modules-section';
@@ -73,6 +76,39 @@ export const PRODUCT_MENU_GROUPS: ProductMenuGroup[] =
     }));
 
 export const SOLUTION_MENU_ITEMS: Solution[] = SOLUTIONS;
+
+const FEATURE_SLUG_BY_TITLE: Record<string, string> = {
+    'Core HR': 'core-hr',
+    'Leave & Cuti': 'cuti-dan-izin',
+    Recruitment: 'rekrutmen',
+    Performance: 'manajemen-kinerja',
+    Payroll: 'payroll',
+    Settlement: 'reimbursement',
+    CRM: 'crm',
+    Attendance: 'absensi-karyawan',
+    'Live Tracking': 'live-tracking-karyawan',
+    'Visiting Pekerjaan': 'kunjungan-karyawan',
+    'AI Intelligence': 'ai-hr',
+    'Workforce Analytics': 'hr-analytics',
+    'Prediksi Risiko Resign': 'prediksi-risiko-resign',
+    'Rapat & Transkrip': 'transkrip-rapat-ai',
+    'HR Helpdesk': 'hr-helpdesk',
+    'Mood Karyawan': 'mood-karyawan',
+    'Ruang Kita': 'ruang-kita',
+    Pengumuman: 'pengumuman-karyawan',
+    'Survei Karyawan': 'survei-karyawan',
+    'Kalender Acara': 'kalender-perusahaan',
+};
+
+function featureMenuHref(title: string, fallback: string): string {
+    const slug = FEATURE_SLUG_BY_TITLE[title];
+
+    if (!slug) {
+        return fallback;
+    }
+
+    return slug === 'crm' ? solutionCrm.url() : featureShow.url(slug);
+}
 
 /**
  * Hover/click-controlled dropdown wrapper for a top-nav item. Desktop only —
@@ -225,8 +261,11 @@ export function FeaturesMegaMenuPanel({
 
                                 return (
                                     <li key={item.title}>
-                                        <a
-                                            href={platformHref}
+                                        <Link
+                                            href={featureMenuHref(
+                                                item.title,
+                                                platformHref,
+                                            )}
                                             className="group -m-1.5 flex items-start gap-3 rounded-xl p-1.5 hover:bg-avana-soft"
                                         >
                                             <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-avana-light text-avana-blue">
@@ -243,7 +282,7 @@ export function FeaturesMegaMenuPanel({
                                                     {item.tagline}
                                                 </span>
                                             </span>
-                                        </a>
+                                        </Link>
                                     </li>
                                 );
                             })}

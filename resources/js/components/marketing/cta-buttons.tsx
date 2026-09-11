@@ -88,9 +88,11 @@ export function DemoButton({
 export function TrialButton({
     variant = 'secondary',
     className,
+    children = 'Coba Avana',
 }: {
     variant?: Variant;
     className?: string;
+    children?: ReactNode;
 }) {
     const { trial, trialExternal } = useCtaTargets();
 
@@ -101,7 +103,7 @@ export function TrialButton({
             variant={variant}
             className={className}
         >
-            Coba Avana
+            {children}
         </CtaLink>
     );
 }

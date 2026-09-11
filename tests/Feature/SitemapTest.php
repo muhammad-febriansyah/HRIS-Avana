@@ -15,6 +15,8 @@ test('sitemap lists static marketing pages and published news, drafts excluded',
     expect($xml)
         ->toContain(route('home'))
         ->toContain(route('berita'))
+        ->toContain(route('features.show', ['featureSlug' => 'core-hr']))
+        ->toContain(route('solution.crm'))
         ->toContain(route('berita.show', $published))
         ->not->toContain('hidden-draft');
 });
