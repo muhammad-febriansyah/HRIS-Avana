@@ -11,6 +11,18 @@ class FeaturePageController extends Controller
     /** @var array<int, string> */
     public const FEATURE_SLUGS = [
         'core-hr',
+        'data-karyawan',
+        'struktur-organisasi',
+        'administrasi-karier',
+        'ess',
+        'otomatisasi-alur-kerja',
+        'pelatihan',
+        'time-management',
+        'manajemen-talenta',
+        'compensation-benefits',
+        'loans-management',
+        'kpi',
+        'ai-analytics',
         'cuti-dan-izin',
         'rekrutmen',
         'manajemen-kinerja',

@@ -2,7 +2,13 @@ import { Link, usePage } from '@inertiajs/react';
 import { ChevronDown, Menu, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { dashboard, liveTracking, login, partnership, security } from '@/routes';
+import {
+    dashboard,
+    liveTracking,
+    login,
+    partnership,
+    security,
+} from '@/routes';
 import { BrandLogo } from './brand-logo';
 import { NAV_ITEMS } from './content';
 import {
@@ -223,6 +229,7 @@ export function SiteNavbar({
                                             solutionHref={`${anchorPrefix}#solusi`}
                                         />
                                     }
+                                    panelClassName="box-border w-[min(1400px,calc(100vw-2rem))]"
                                 />
                             );
                         }
@@ -381,7 +388,7 @@ export function SiteNavbar({
                                                                         >
                                                                             <a
                                                                                 href={
-                                                                                    item.href
+                                                                                    module.href
                                                                                 }
                                                                                 onClick={() => {
                                                                                     setMobileOpen(

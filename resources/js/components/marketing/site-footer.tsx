@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { liveTracking, security } from '@/routes';
+import { show as featureShow } from '@/routes/features';
 import { BrandLogo } from './brand-logo';
 import { FOOTER_EXPLORE } from './content';
 import { Container, Reveal } from './reveal';
@@ -24,16 +25,21 @@ type Social = {
     label: string;
 };
 
-/** The 8 concrete modules from `ModulesSection`, linked to that section. */
+/** Key public modules, linking visitors to their dedicated feature pages. */
 const FOOTER_MODULES = [
-    'Core HR',
-    'Payroll',
-    'Attendance',
-    'Leave & Cuti',
-    'Recruitment',
-    'Performance',
-    'AI Intelligence',
-    'Workforce Analytics',
+    { label: 'Core HR', href: featureShow.url('core-hr') },
+    { label: 'Data Karyawan', href: featureShow.url('data-karyawan') },
+    { label: 'ESS', href: featureShow.url('ess') },
+    { label: 'Payroll', href: featureShow.url('payroll') },
+    { label: 'Pelatihan', href: featureShow.url('pelatihan') },
+    { label: 'Time Management', href: featureShow.url('time-management') },
+    {
+        label: 'Manajemen Talenta',
+        href: featureShow.url('manajemen-talenta'),
+    },
+    { label: 'KPI & OKR', href: featureShow.url('kpi') },
+    { label: 'AI & Analytics', href: featureShow.url('ai-analytics') },
+    { label: 'Pusat Pengetahuan', href: featureShow.url('hr-helpdesk') },
 ];
 
 /** Article categories seeded via `NewsSeeder` — kept in sync manually. */
@@ -242,14 +248,14 @@ export function SiteFooter({
                     <nav aria-label="Produk & fitur">
                         <ColumnHeading>Produk &amp; Fitur</ColumnHeading>
                         <ul className="mt-6 space-y-3">
-                            {FOOTER_MODULES.map((label) => (
-                                <li key={label}>
-                                    <a
-                                        href={`${anchorPrefix}#platform`}
+                            {FOOTER_MODULES.map((item) => (
+                                <li key={item.label}>
+                                    <Link
+                                        href={item.href}
                                         className={LINK_CLASS}
                                     >
-                                        {label}
-                                    </a>
+                                        {item.label}
+                                    </Link>
                                 </li>
                             ))}
                         </ul>

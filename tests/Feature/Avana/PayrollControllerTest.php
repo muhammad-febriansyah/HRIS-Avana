@@ -15,6 +15,7 @@ use App\Models\SalaryChangeSet;
 use App\Models\SalaryMaster;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\AvanaNav;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Support\Facades\Route;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -50,6 +51,7 @@ beforeEach(function (): void {
     // on collision-free paths so the controllers can be exercised in isolation.
     Route::middleware('web')->prefix('spec-avana')->name('spec.')->group(function (): void {
         Route::get('payroll', [PayrollController::class, 'index'])->name('payroll');
+        Route::get('payroll/dashboard', [PayrollController::class, 'dashboard'])->name('payroll.dashboard');
         Route::get('payroll/periods/create', [PayrollController::class, 'createPeriod'])->name('payroll.periods.create');
         Route::post('payroll/periods', [PayrollController::class, 'storePeriod'])->name('payroll.periods.store');
         Route::post('payroll/run', [PayrollController::class, 'run'])->name('payroll.run');
@@ -97,6 +99,7 @@ it('renders the payroll index with the expected props', function (): void {
                 ->has('total_net')
                 ->has('employee_count')
                 ->has('recipient_count'))
+            ->missing('dashboard')
             ->has('recipients')
             ->has('slip', fn (Assert $slip) => $slip
                 ->has('employee')
@@ -108,6 +111,40 @@ it('renders the payroll index with the expected props', function (): void {
                 ->has('net'))
             ->has('slip_employees')
             ->has('filters'));
+});
+
+it('exposes the dedicated dashboard through the tenant menu', function (): void {
+    $leaves = collect(AvanaNav::forUser($this->admin->fresh()))
+        ->flatMap(fn (array $group): array => collect($group['items'])
+            ->flatMap(fn (array $item): array => $item['children'] ?? [$item])
+            ->all())
+        ->values();
+
+    expect($leaves->firstWhere('href', '/avana/payroll/dashboard'))->not->toBeNull();
+});
+
+it('renders the payroll dashboard as a separate page', function (): void {
+    actingAs($this->admin)
+        ->get('spec-avana/payroll/dashboard')
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('avana/payroll/dashboard', false)
+            ->has('dashboard', fn (Assert $dashboard) => $dashboard
+                ->where('period', 'Juni 2026')
+                ->where('period_id', 1)
+                ->where('previous_period', null)
+                ->has('period_options', 1)
+                ->has('kpis', 6)
+                ->has('comparison')
+                ->has('trend', 6)
+                ->where('trend.0.label', 'Jan 2026')
+                ->where('trend.5.label', 'Jun 2026')
+                ->has('distribution', 4)
+                ->has('status', 4)
+                ->has('departments', 0)
+                ->has('payment_summary', 2)
+                ->has('insight')
+                ->etc()));
 });
 
 it('only lists payroll periods for the current tenant', function (): void {

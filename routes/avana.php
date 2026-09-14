@@ -237,6 +237,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     Route::post('approval/{type}/{id}/reject', [ApprovalController::class, 'reject'])->name('approval.reject');
 
     Route::get('payroll', [PayrollController::class, 'index'])->name('payroll');
+    Route::get('payroll/dashboard', [PayrollController::class, 'dashboard'])->name('payroll.dashboard');
     Route::get('payroll/periods/create', [PayrollController::class, 'createPeriod'])->name('payroll.periods.create');
     Route::post('payroll/periods', [PayrollController::class, 'storePeriod'])->name('payroll.periods.store');
     Route::get('payroll/perhitungan-hari', [DayCalcMethodController::class, 'index'])->name('payroll.perhitungan-hari');

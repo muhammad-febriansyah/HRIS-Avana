@@ -114,6 +114,41 @@ class PayrollController extends Controller
     public function __construct(private readonly OvertimePayableHours $overtimeHoursVerifier) {}
 
     /**
+     * Display the payroll dashboard as its own read-only feature page.
+     */
+    public function dashboard(Request $request): Response
+    {
+        $this->authorize('viewAny', PayrollPeriod::class);
+
+        $tenantId = $request->user()->tenant_id;
+        $periodQuery = PayrollPeriod::forTenant($tenantId)
+            ->regular()
+            ->whereNotNull('start_date');
+
+        $selectedPeriod = $request->filled('period')
+            ? (clone $periodQuery)->whereKey($request->integer('period'))->first()
+            : null;
+
+        $selectedPeriod ??= $periodQuery
+            ->orderByDesc('start_date')
+            ->orderByDesc('id')
+            ->first();
+
+        $selectedRun = $selectedPeriod === null
+            ? null
+            : PayrollRun::forTenant($tenantId)
+                ->current()
+                ->where('payroll_period_id', $selectedPeriod->id)
+                ->whereNull('branch_id')
+                ->orderByDesc('id')
+                ->first();
+
+        return Inertia::render('avana/payroll/dashboard', [
+            'dashboard' => $this->payrollDashboard($tenantId, $selectedPeriod, $selectedRun),
+        ]);
+    }
+
+    /**
      * Display the payroll periods list, latest-run summary and a sample payslip.
      */
     public function index(Request $request): Response
@@ -229,6 +264,277 @@ class PayrollController extends Controller
             'checklist' => $this->setupChecklist($tenantId),
             'filters' => $request->only(['search', 'status', 'per_page', 'period', 'scheme', 'only_paid', 'slip_employee']),
         ]);
+    }
+
+    /**
+     * Build the read-only overview shown above the payroll operations.
+     *
+     * @return array<string, mixed>
+     */
+    private function payrollDashboard(int $tenantId, ?PayrollPeriod $selectedPeriod, ?PayrollRun $selectedRun): array
+    {
+        $regularPeriods = PayrollPeriod::forTenant($tenantId)
+            ->regular()
+            ->whereNotNull('start_date')
+            ->orderByDesc('start_date')
+            ->orderByDesc('id')
+            ->get(['id', 'name', 'start_date']);
+
+        $runsByPeriod = PayrollRun::forTenant($tenantId)
+            ->current()
+            ->whereNull('branch_id')
+            ->whereIn('payroll_period_id', $regularPeriods->pluck('id'))
+            ->orderByDesc('id')
+            ->get([
+                'id', 'payroll_period_id', 'status', 'total_gross', 'total_deduction',
+                'total_tax', 'total_net', 'employee_count',
+            ])
+            ->groupBy('payroll_period_id')
+            ->map(fn (Collection $runs): PayrollRun => $runs->first());
+
+        $current = $this->dashboardRunData($selectedRun);
+        $previousPeriod = $regularPeriods->first(
+            fn (PayrollPeriod $period): bool => ($selectedPeriod?->start_date === null
+                || $period->start_date?->lt($selectedPeriod->start_date))
+                && $runsByPeriod->has($period->id),
+        );
+        $previous = $this->dashboardRunData(
+            $previousPeriod === null ? null : $runsByPeriod->get($previousPeriod->id),
+        );
+
+        $trendEnd = $selectedPeriod?->start_date?->copy()->startOfMonth() ?? now()->startOfMonth();
+        $monthLabels = [
+            1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr', 5 => 'Mei', 6 => 'Jun',
+            7 => 'Jul', 8 => 'Agu', 9 => 'Sep', 10 => 'Okt', 11 => 'Nov', 12 => 'Des',
+        ];
+        $trend = collect(range(5, 0))
+            ->map(function (int $monthsAgo) use ($trendEnd, $regularPeriods, $runsByPeriod, $monthLabels): array {
+                $month = $trendEnd->copy()->subMonths($monthsAgo);
+                $period = $regularPeriods->first(
+                    fn (PayrollPeriod $candidate): bool => $candidate->start_date?->isSameMonth($month) ?? false,
+                );
+                $run = $period === null ? null : $runsByPeriod->get($period->id);
+
+                return [
+                    'label' => $monthLabels[$month->month].' '.$month->year,
+                    'value' => $this->dashboardRunData($run)['gross'],
+                ];
+            })
+            ->all();
+
+        $periodOptions = $regularPeriods
+            ->map(fn (PayrollPeriod $period): array => [
+                'id' => $period->id,
+                'label' => $period->name,
+            ])
+            ->values()
+            ->all();
+
+        if ($selectedPeriod !== null && ! collect($periodOptions)->contains('id', $selectedPeriod->id)) {
+            array_unshift($periodOptions, ['id' => $selectedPeriod->id, 'label' => $selectedPeriod->name]);
+        }
+
+        return [
+            'period' => $selectedPeriod?->name,
+            'period_id' => $selectedPeriod?->id,
+            'previous_period' => $previousPeriod?->name,
+            'period_options' => $periodOptions,
+            'kpis' => $this->dashboardKpis($current, $previous),
+            'comparison' => [
+                'current' => $current['gross'],
+                'previous' => $previous['gross'],
+                'change_percent' => $this->percentageChange($current['gross'], $previous['gross']),
+                'difference' => $current['gross'] - $previous['gross'],
+            ],
+            'trend' => $trend,
+            'distribution' => [
+                ['label' => 'Gaji Bersih (Net)', 'value' => $current['net']],
+                ['label' => 'PPh 21', 'value' => $current['tax']],
+                ['label' => 'BPJS', 'value' => $current['bpjs']],
+                ['label' => 'Lainnya', 'value' => $current['other_deduction']],
+            ],
+            'status' => $this->dashboardStatuses($selectedRun, $current['employee_count'], $current['error_count']),
+            'departments' => $this->dashboardDepartments($selectedRun),
+            'payment_summary' => $this->dashboardPaymentSummary($selectedRun, $current),
+            'insight' => $this->dashboardInsight($current, $previous, $selectedPeriod),
+        ];
+    }
+
+    /**
+     * @return array{gross: float, deduction: float, tax: float, net: float, bpjs: float, other_deduction: float, employee_count: int, error_count: int}
+     */
+    private function dashboardRunData(?PayrollRun $run): array
+    {
+        if ($run === null) {
+            return [
+                'gross' => 0.0, 'deduction' => 0.0, 'tax' => 0.0, 'net' => 0.0,
+                'bpjs' => 0.0, 'other_deduction' => 0.0, 'employee_count' => 0, 'error_count' => 0,
+            ];
+        }
+
+        $itemTotals = DB::table('payroll_run_items')
+            ->where('payroll_run_id', $run->id)
+            ->selectRaw('COALESCE(SUM(bpjs_employee_total + bpjs_company_total), 0) AS bpjs')
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END), 0) AS error_count")
+            ->first();
+
+        $gross = (float) $run->total_gross;
+        $tax = (float) $run->total_tax;
+        $net = (float) $run->total_net;
+        $bpjs = (float) ($itemTotals->bpjs ?? 0);
+
+        return [
+            'gross' => $gross,
+            'deduction' => (float) $run->total_deduction,
+            'tax' => $tax,
+            'net' => $net,
+            'bpjs' => $bpjs,
+            'other_deduction' => max(0.0, $gross - $net - $tax - $bpjs),
+            'employee_count' => (int) $run->employee_count,
+            'error_count' => (int) ($itemTotals->error_count ?? 0),
+        ];
+    }
+
+    /**
+     * @param  array{gross: float, deduction: float, tax: float, net: float, bpjs: float, other_deduction: float, employee_count: int, error_count: int}  $current
+     * @param  array{gross: float, deduction: float, tax: float, net: float, bpjs: float, other_deduction: float, employee_count: int, error_count: int}  $previous
+     * @return array<int, array<string, mixed>>
+     */
+    private function dashboardKpis(array $current, array $previous): array
+    {
+        return collect([
+            ['key' => 'gross', 'label' => 'Total Payroll (Gross)', 'icon' => 'coins', 'color' => '#2F54C9'],
+            ['key' => 'employee_count', 'label' => 'Total Karyawan', 'icon' => 'users', 'color' => '#16A34A'],
+            ['key' => 'net', 'label' => 'Gaji Bersih (Net)', 'icon' => 'wallet', 'color' => '#7C3AED'],
+            ['key' => 'deduction', 'label' => 'Total Potongan', 'icon' => 'chart-pie', 'color' => '#DC2626'],
+            ['key' => 'tax', 'label' => 'PPh 21', 'icon' => 'file-text', 'color' => '#D97706'],
+            ['key' => 'bpjs', 'label' => 'BPJS', 'icon' => 'shield-check', 'color' => '#0D9488'],
+        ])->map(function (array $kpi) use ($current, $previous): array {
+            $value = (float) $current[$kpi['key']];
+            $previousValue = (float) $previous[$kpi['key']];
+
+            return [
+                ...$kpi,
+                'value' => $value,
+                'previous_value' => $previousValue,
+                'change_percent' => $this->percentageChange($value, $previousValue),
+            ];
+        })->all();
+    }
+
+    /**
+     * @return array<int, array{key: string, label: string, count: int, color: string}>
+     */
+    private function dashboardStatuses(?PayrollRun $run, int $employeeCount, int $errorCount): array
+    {
+        $errors = $run === null ? 0 : min($employeeCount, $errorCount);
+        $remaining = max(0, $employeeCount - $errors);
+
+        return [
+            ['key' => 'completed', 'label' => 'Selesai', 'count' => $run?->status === PayrollRun::STATUS_LOCKED ? $remaining : 0, 'color' => '#16A34A'],
+            ['key' => 'pending', 'label' => 'Menunggu Review', 'count' => $run?->status === PayrollRun::STATUS_APPROVED ? $remaining : 0, 'color' => '#D97706'],
+            ['key' => 'not_processed', 'label' => 'Belum Diproses', 'count' => $run !== null && ! in_array($run->status, [PayrollRun::STATUS_LOCKED, PayrollRun::STATUS_APPROVED], true) ? $remaining : 0, 'color' => '#94A3B8'],
+            ['key' => 'error', 'label' => 'Error', 'count' => $errors, 'color' => '#DC2626'],
+        ];
+    }
+
+    /**
+     * Summarise payment readiness from the payroll lifecycle available here.
+     * The application has no separate bank-payment table, so this is a
+     * payroll-status view rather than a claim about an external transfer.
+     *
+     * @param  array{gross: float, deduction: float, tax: float, net: float, bpjs: float, other_deduction: float, employee_count: int, error_count: int}  $current
+     * @return array<int, array{key: string, label: string, amount: float, count: int, percentage: float, color: string, icon: string}>
+     */
+    private function dashboardPaymentSummary(?PayrollRun $run, array $current): array
+    {
+        $completed = $run?->status === PayrollRun::STATUS_LOCKED;
+        $readyCount = $completed ? max(0, $current['employee_count'] - $current['error_count']) : 0;
+        $pendingCount = $completed ? 0 : max(0, $current['employee_count'] - $current['error_count']);
+        $totalCount = max(1, $readyCount + $pendingCount);
+
+        return [
+            [
+                'key' => 'successful',
+                'label' => 'Pembayaran Berhasil',
+                'amount' => $completed ? $current['net'] : 0.0,
+                'count' => $readyCount,
+                'percentage' => ($readyCount / $totalCount) * 100,
+                'color' => '#16A34A',
+                'icon' => 'shield-check',
+            ],
+            [
+                'key' => 'pending',
+                'label' => 'Menunggu Pembayaran',
+                'amount' => $completed ? 0.0 : $current['net'],
+                'count' => $pendingCount,
+                'percentage' => ($pendingCount / $totalCount) * 100,
+                'color' => '#DC2626',
+                'icon' => 'circle-dollar-sign',
+            ],
+        ];
+    }
+
+    /**
+     * There is no cost-centre table in this application. Department is the
+     * available organisational dimension and keeps this chart fully real.
+     *
+     * @return array<int, array{code: string, label: string, value: float, employee_count: int}>
+     */
+    private function dashboardDepartments(?PayrollRun $run): array
+    {
+        if ($run === null) {
+            return [];
+        }
+
+        return DB::table('payroll_run_items AS items')
+            ->join('employees AS employees', 'employees.id', '=', 'items.employee_id')
+            ->leftJoin('departments AS departments', 'departments.id', '=', 'employees.department_id')
+            ->where('items.payroll_run_id', $run->id)
+            ->groupBy('departments.id', 'departments.code', 'departments.name')
+            ->orderByDesc(DB::raw('SUM(items.gross_salary)'))
+            ->get([
+                DB::raw("COALESCE(departments.code, '—') AS code"),
+                DB::raw("COALESCE(departments.name, 'Tanpa Departemen') AS label"),
+                DB::raw('SUM(items.gross_salary) AS value'),
+                DB::raw('COUNT(items.id) AS employee_count'),
+            ])
+            ->map(fn (object $row): array => [
+                'code' => (string) $row->code,
+                'label' => (string) $row->label,
+                'value' => (float) $row->value,
+                'employee_count' => (int) $row->employee_count,
+            ])
+            ->all();
+    }
+
+    /**
+     * @param  array{gross: float, deduction: float, tax: float, net: float, bpjs: float, other_deduction: float, employee_count: int, error_count: int}  $current
+     * @param  array{gross: float, deduction: float, tax: float, net: float, bpjs: float, other_deduction: float, employee_count: int, error_count: int}  $previous
+     */
+    private function dashboardInsight(array $current, array $previous, ?PayrollPeriod $period): string
+    {
+        if ($period === null || $current['gross'] <= 0) {
+            return 'Belum ada perhitungan payroll pada periode ini.';
+        }
+
+        if ($previous['gross'] <= 0) {
+            $grossLabel = $this->rupiah($current['gross']);
+
+            return "Payroll periode {$period->name} sudah memiliki total gross {$grossLabel}. Belum ada periode sebelumnya yang dapat dibandingkan.";
+        }
+
+        $change = $this->percentageChange($current['gross'], $previous['gross']);
+        $direction = ($change ?? 0) >= 0 ? 'naik' : 'turun';
+
+        return 'Total payroll periode '.$period->name.' '.$direction.' '
+            .number_format(abs($change ?? 0), 1, ',', '.')
+            .'% dibandingkan periode sebelumnya.';
+    }
+
+    private function percentageChange(float $current, float $previous): ?float
+    {
+        return $previous > 0 ? (($current - $previous) / $previous) * 100 : null;
     }
 
     /**

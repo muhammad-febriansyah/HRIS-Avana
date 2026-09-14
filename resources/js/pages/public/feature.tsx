@@ -12,7 +12,9 @@ import {
     ContactRound,
     FileCheck2,
     FileText,
+    Gauge,
     GitBranch,
+    GraduationCap,
     Headphones,
     Landmark,
     ListChecks,
@@ -29,6 +31,7 @@ import {
     Star,
     Target,
     TicketCheck,
+    TrendingDown,
     TrendingUp,
     UserCheck,
     UserPlus,
@@ -47,6 +50,8 @@ import {
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { SiteNavbar } from '@/components/marketing/site-navbar';
 import { WhatsAppFab } from '@/components/marketing/whatsapp-fab';
+import { PUBLIC_FEATURE_CATALOG } from '@/data/public-feature-catalog';
+import type { PublicFeatureCatalogEntry } from '@/data/public-feature-catalog';
 import { home, security } from '@/routes';
 import { show as featuresShow } from '@/routes/features';
 import { crm as solutionCrm } from '@/routes/solution';
@@ -55,6 +60,7 @@ type FeatureCard = {
     title: string;
     description: string;
     icon: LucideIcon;
+    status?: 'live' | 'hold';
 };
 
 type FeaturePageData = {
@@ -77,7 +83,37 @@ const F = (
     title: string,
     description: string,
     icon: LucideIcon,
-): FeatureCard => ({ title, description, icon });
+    status?: 'live' | 'hold',
+): FeatureCard => ({ title, description, icon, status });
+
+const CATALOG_ICON_MAP: Record<string, LucideIcon> = {
+    BarChart3,
+    CalendarDays,
+    CircleCheck,
+    Clock3,
+    ContactRound,
+    FileCheck2,
+    FileText,
+    Gauge,
+    GitBranch,
+    GraduationCap,
+    Landmark,
+    ListChecks,
+    MessageSquareText,
+    Network,
+    ReceiptText,
+    ScanFace,
+    ShieldAlert,
+    Sparkles,
+    Target,
+    TicketCheck,
+    TrendingDown,
+    TrendingUp,
+    UserCheck,
+    UserPlus,
+    Users,
+    WalletCards,
+};
 
 const FEATURE_PAGES: Record<string, FeaturePageData> = {
     'core-hr': {
@@ -170,6 +206,278 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
             'absensi-karyawan',
             'cuti-dan-izin',
             'payroll',
+            'hr-analytics',
+        ],
+    },
+    'data-karyawan': {
+        name: 'Data Karyawan',
+        category: 'HR & Karyawan',
+        asset: 'core-hr.png',
+        title: 'Satu Sistem Terpadu untuk Data Karyawan yang Selalu Siap Dipakai',
+        description:
+            'Satukan data karyawan, dashboard aktivitas, pembaruan ESS, laporan, surat resmi, dan pencarian berbasis AI dalam satu sumber data HR yang terstruktur.',
+        heroNote: 'Data karyawan lengkap, ringkas, dan mudah ditindaklanjuti.',
+        problems: [
+            'Data karyawan tersebar di banyak file dan aplikasi.',
+            'HR membutuhkan waktu untuk menyusun ringkasan aktivitas setiap hari.',
+            'Pembaruan data pribadi masih bergantung pada admin.',
+            'Laporan dan surat resmi dibuat berulang dari awal.',
+        ],
+        features: [
+            F(
+                'Data lengkap dan terstruktur',
+                'Simpan informasi karyawan dalam kategori yang rapi, mudah dicari, dan terhubung ke modul HR lainnya.',
+                ContactRound,
+            ),
+            F(
+                'Dashboard karyawan interaktif',
+                'Lihat ringkasan headcount, kualitas data, notifikasi, kehadiran, dan permintaan karyawan dalam satu tampilan.',
+                BarChart3,
+            ),
+            F(
+                'Pembaruan mandiri melalui ESS',
+                'Karyawan dapat memperbarui data pribadinya sendiri dengan alur persetujuan atasan yang lebih praktis.',
+                UserCheck,
+            ),
+            F(
+                'Laporan dan surat resmi otomatis',
+                'Gunakan template dan filter fleksibel untuk membuat laporan, kontrak, surat peringatan, dan dokumen administratif.',
+                FileText,
+            ),
+            F(
+                'Akses data berbasis AI',
+                'Ajukan pertanyaan dalam bahasa sehari-hari dan dapatkan jawaban dari data HR yang memiliki akses sesuai peran.',
+                Sparkles,
+            ),
+        ],
+        steps: [
+            'Impor atau lengkapi data karyawan',
+            'Kelompokkan informasi berdasarkan kategori',
+            'Karyawan memperbarui data melalui ESS',
+            'HR memantau dashboard dan aktivitas',
+            'Buat laporan atau cari jawaban dengan AI',
+        ],
+        benefits: [
+            'Satu sumber data karyawan untuk seluruh proses HR.',
+            'Ringkasan aktivitas lebih cepat dipahami oleh HR dan manajemen.',
+            'Akurasi data meningkat karena karyawan ikut memperbaruinya.',
+            'Laporan dan surat resmi lebih konsisten dan hemat waktu.',
+        ],
+        audience: [
+            'Tim HR dengan data karyawan yang terus bertambah',
+            'Perusahaan multi cabang',
+            'Organisasi yang ingin mendorong penggunaan ESS',
+            'Manajemen yang membutuhkan ringkasan HR secara cepat',
+        ],
+        faqs: [
+            {
+                q: 'Informasi apa saja yang dapat dikelola?',
+                a: 'Data personal, pekerjaan, struktur organisasi, dokumen, riwayat aktivitas, dan kategori informasi HR lainnya dapat dikelola sesuai konfigurasi perusahaan.',
+            },
+            {
+                q: 'Apakah karyawan dapat mengubah datanya sendiri?',
+                a: 'Bisa. Karyawan mengajukan perubahan melalui ESS, lalu perubahan dapat mengikuti persetujuan atasan sebelum diterapkan.',
+            },
+            {
+                q: 'Aktivitas apa yang tampil di dashboard?',
+                a: 'Dashboard dapat merangkum kehadiran, permintaan cuti, perubahan data, notifikasi, kualitas data, dan aktivitas penting lainnya.',
+            },
+            {
+                q: 'Apakah bisa membuat surat resmi dari template?',
+                a: 'Bisa. HR dapat menggunakan template dan filter data untuk menghasilkan surat serta laporan dengan format yang konsisten.',
+            },
+            {
+                q: 'Bagaimana AI membantu pencarian data?',
+                a: 'HR dapat mengajukan pertanyaan secara percakapan. AI memberikan jawaban berdasarkan data dan akses yang tersedia bagi pengguna.',
+            },
+        ],
+        related: [
+            'core-hr',
+            'absensi-karyawan',
+            'cuti-dan-izin',
+            'hr-analytics',
+        ],
+    },
+    'struktur-organisasi': {
+        name: 'Struktur Organisasi',
+        category: 'HR & Karyawan',
+        asset: 'core-hr.png',
+        title: 'Jelaskan Struktur Organisasi dengan Lebih Jelas dan Fleksibel',
+        description:
+            'Tampilkan hierarki, hubungan kerja, dan rencana perubahan organisasi dalam informasi visual yang mudah dipahami oleh seluruh perusahaan.',
+        heroNote: 'Struktur hari ini dan rencana masa depan dalam satu cerita.',
+        problems: [
+            'Struktur organisasi sulit dipahami dari daftar jabatan biasa.',
+            'Hubungan lintas fungsi tidak terlihat jelas.',
+            'Rencana perubahan organisasi masih tersimpan di dokumen terpisah.',
+            'Informasi kebijakan dan komunikasi internal tidak berada di satu tempat.',
+        ],
+        features: [
+            F(
+                'Tampilan hierarki otomatis',
+                'Jelaskan posisi, unit, atasan, dan anggota tim melalui susunan hierarki yang mudah dibaca.',
+                Network,
+            ),
+            F(
+                'Diagram hubungan fleksibel',
+                'Tampilkan hubungan pelaporan dan kolaborasi sesuai cara perusahaan ingin menjelaskan organisasinya.',
+                GitBranch,
+            ),
+            F(
+                'Perencanaan struktur masa depan',
+                'Buat gambaran struktur yang direncanakan untuk membantu komunikasi perubahan dan pertumbuhan organisasi.',
+                TrendingUp,
+            ),
+            F(
+                'Kemudahan pengelolaan dan pembaruan struktur',
+                'Buat atau perbarui posisi dan hubungan kerja dengan cepat melalui pengelolaan struktur yang intuitif.',
+                ClipboardCheck,
+            ),
+            F(
+                'Pembuatan konten berbasis AI',
+                'Bantu menyusun penjelasan unit, peran, dan perubahan struktur dengan konten yang lebih cepat dan konsisten.',
+                Sparkles,
+            ),
+            F(
+                'Pengumuman internal terpusat',
+                'Sampaikan perubahan struktur dan informasi penting kepada kelompok karyawan yang relevan.',
+                Megaphone,
+            ),
+            F(
+                'Transparansi kebijakan perusahaan',
+                'Hubungkan struktur dengan penjelasan kebijakan agar karyawan memahami konteks peran dan tanggung jawabnya.',
+                ShieldAlert,
+            ),
+        ],
+        steps: [
+            'Susun unit dan posisi organisasi',
+            'Tampilkan hierarki dan hubungan kerja',
+            'Siapkan rencana struktur masa depan',
+            'Buat penjelasan dengan bantuan AI',
+            'Bagikan perubahan dan kebijakan secara terpusat',
+        ],
+        benefits: [
+            'Struktur organisasi lebih mudah dipahami semua pihak.',
+            'Hubungan kerja lintas unit dapat dijelaskan dengan konteks.',
+            'Perubahan organisasi lebih mudah dikomunikasikan.',
+            'Karyawan mendapat informasi kebijakan dari sumber yang jelas.',
+        ],
+        audience: [
+            'Perusahaan dengan banyak unit atau cabang',
+            'Organisasi yang sedang bertumbuh dan berubah',
+            'Tim HR dan internal communication',
+            'Manajemen yang ingin menyampaikan struktur secara transparan',
+        ],
+        faqs: [
+            {
+                q: 'Apa yang dapat ditampilkan dalam struktur organisasi?',
+                a: 'Anda dapat menjelaskan unit, posisi, atasan, anggota tim, dan hubungan kerja sesuai kebutuhan informasi perusahaan.',
+            },
+            {
+                q: 'Apakah diagram dapat menjelaskan hubungan lintas fungsi?',
+                a: 'Bisa. Diagram dapat digunakan untuk memperjelas relasi pelaporan maupun kolaborasi antar unit.',
+            },
+            {
+                q: 'Apakah struktur masa depan dapat ikut dijelaskan?',
+                a: 'Bisa. Rencana perubahan struktur dapat disiapkan sebagai bagian dari komunikasi dan perencanaan organisasi.',
+            },
+            {
+                q: 'Bagaimana AI digunakan pada fitur ini?',
+                a: 'AI membantu menyusun draf penjelasan tentang unit, peran, dan perubahan struktur agar konten lebih cepat dibuat.',
+            },
+            {
+                q: 'Apakah kebijakan dan pengumuman dapat disampaikan bersama?',
+                a: 'Bisa. Informasi perubahan struktur, pengumuman internal, dan kebijakan dapat diarahkan ke kelompok karyawan yang relevan.',
+            },
+        ],
+        related: ['core-hr', 'data-karyawan', 'pengumuman-karyawan', 'ai-hr'],
+    },
+    'administrasi-karier': {
+        name: 'Administrasi Karier',
+        category: 'HR & Karyawan',
+        asset: 'core-hr.png',
+        title: 'Kelola Setiap Transisi Karier dengan Riwayat yang Lengkap',
+        description:
+            'Catat perjalanan karier karyawan dari rekrutmen, mutasi, promosi, penghargaan, hingga offboarding dalam satu informasi yang terstruktur.',
+        heroNote: 'Perubahan peran dan perjalanan karier tetap terlacak.',
+        problems: [
+            'Riwayat mutasi dan promosi tersebar di banyak dokumen.',
+            'Perubahan jabatan dan kompensasi sulit dibandingkan.',
+            'Transisi karier massal rawan kesalahan saat dilakukan manual.',
+            'Proses offboarding memiliki banyak langkah yang mudah terlewat.',
+        ],
+        features: [
+            F(
+                'Administrasi karier',
+                'Catat rekrutmen, mutasi, promosi, perubahan peran, jabatan, dan kompensasi melalui alur langsung atau persetujuan, lalu bandingkan perubahan dalam tampilan before–after.',
+                TrendingUp,
+            ),
+            F(
+                'Transisi karier massal',
+                'Kelola rotasi, pemutusan kerja, atau pergerakan karyawan dalam jumlah besar menggunakan template standar.',
+                Users,
+            ),
+            F(
+                'Penghargaan & disiplin',
+                'Simpan pencapaian dan tindakan disipliner sebagai bagian dari riwayat karyawan yang terintegrasi.',
+                ShieldAlert,
+            ),
+            F(
+                'Offboarding karyawan',
+                'Gunakan checklist terstruktur untuk memeriksa pinjaman, biaya, cuti, perjanjian kerja, aset, dan payroll terakhir.',
+                ClipboardCheck,
+            ),
+            F(
+                'Reporting & analitik karier',
+                'Analisis tren perpindahan, promosi, dan perjalanan karier untuk mendukung perencanaan SDM.',
+                BarChart3,
+            ),
+        ],
+        steps: [
+            'Catat peristiwa karier karyawan',
+            'Tinjau perubahan before–after',
+            'Ajukan persetujuan bila diperlukan',
+            'Kelola transisi massal dengan template',
+            'Gunakan riwayat untuk laporan dan analitik',
+        ],
+        benefits: [
+            'Riwayat karier karyawan lebih lengkap dan mudah dirujuk.',
+            'Perubahan jabatan dan kompensasi lebih transparan.',
+            'Transisi massal lebih cepat diverifikasi.',
+            'Offboarding berjalan terstruktur sampai payroll terakhir.',
+        ],
+        audience: [
+            'Perusahaan dengan banyak mutasi dan promosi',
+            'Tim HR yang mengelola perubahan karyawan secara massal',
+            'Organisasi yang membutuhkan proses offboarding terkontrol',
+            'Manajemen yang membutuhkan insight pergerakan karier',
+        ],
+        faqs: [
+            {
+                q: 'Peristiwa karier apa saja yang dapat dicatat?',
+                a: 'Rekrutmen, mutasi, promosi, perubahan peran, jabatan, kompensasi, penghargaan, disiplin, dan offboarding dapat dijelaskan dalam riwayat karier.',
+            },
+            {
+                q: 'Apakah perubahan dapat melalui persetujuan?',
+                a: 'Bisa. Perubahan dapat mengikuti alur persetujuan sesuai kebijakan perusahaan.',
+            },
+            {
+                q: 'Apakah transisi massal memakai template?',
+                a: 'Bisa. Template standar membantu HR mengelola pergerakan karyawan sekaligus dan meninjau potensi kesalahan.',
+            },
+            {
+                q: 'Apa saja yang diperiksa saat offboarding?',
+                a: 'Checklist dapat mencakup pinjaman, biaya, saldo cuti, perjanjian kerja, pengembalian aset, dan persiapan payroll terakhir.',
+            },
+            {
+                q: 'Apakah data karier dapat dianalisis?',
+                a: 'Bisa. Riwayat perubahan dapat digunakan untuk melihat tren karier dan mendukung perencanaan SDM.',
+            },
+        ],
+        related: [
+            'core-hr',
+            'data-karyawan',
+            'manajemen-kinerja',
             'hr-analytics',
         ],
     },
@@ -283,34 +591,39 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
         ],
         features: [
             F(
-                'Job requisition',
-                'Mulai rekrutmen dari kebutuhan posisi yang jelas dan terdokumentasi.',
+                'Plan with Confidence',
+                'Analisis kemampuan workforce untuk memproyeksikan kebutuhan tenaga kerja dan keterampilan di masa depan.',
                 BriefcaseBusiness,
             ),
             F(
-                'Lowongan kerja',
-                'Kelola lowongan aktif, detail posisi, dan status publikasinya.',
+                'Proses Rekrutmen dan Seleksi',
+                'Lacak detail kandidat dan proses seleksi secara terstruktur untuk kualitas perekrutan yang lebih baik.',
                 Megaphone,
             ),
             F(
-                'Candidate pipeline',
-                'Pindahkan kandidat antar tahap tanpa kehilangan histori.',
+                'Interaksi dengan Pelamar',
+                'Automatiskan komunikasi dan kolaborasi untuk menciptakan pengalaman pelamar yang lebih baik.',
                 GitBranch,
             ),
             F(
-                'Interview & assessment',
-                'Catat jadwal, hasil, dan catatan evaluasi kandidat.',
+                'Proses Rekrutmen Online',
+                'Arahkan kandidat ke portal pekerjaan dengan data pelamar yang lengkap dan tertata.',
                 CalendarDays,
             ),
             F(
-                'Hiring approval',
-                'Buat keputusan hiring berdasarkan informasi yang terkumpul.',
-                UserCheck,
+                'CV Reader Berbasis AI',
+                'Ekstrak informasi CV, lalu cocokkan kandidat dengan kriteria pre-screening yang telah ditentukan.',
+                Sparkles,
             ),
             F(
-                'Terhubung ke Core HR',
-                'Kandidat terpilih dapat diteruskan menjadi data karyawan.',
-                Users,
+                'Video Interview',
+                'Lakukan wawancara video dengan pertanyaan terstruktur yang mudah dibagikan kepada reviewer.',
+                Mic2,
+            ),
+            F(
+                'Pertanyaan Penilaian Otomatis',
+                'Gunakan kriteria yang konsisten untuk membantu menyaring dan menilai kandidat lebih cepat.',
+                ClipboardCheck,
             ),
         ],
         steps: [
@@ -463,34 +776,29 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
         ],
         features: [
             F(
-                'Komponen gaji',
-                'Atur gaji pokok, tunjangan, potongan, dan komponen custom.',
+                'Manajemen Komponen',
+                'Gunakan komponen tak terbatas untuk menghitung tunjangan, pengurangan, komponen netral, pinjaman, asuransi, lembur, biaya, dan skema payroll yang kompleks.',
                 WalletCards,
             ),
             F(
-                'PPh 21 & BPJS',
-                'Siapkan komponen pajak dan jaminan sosial dalam proses payroll.',
+                'Proses Penggajian',
+                'Sederhanakan pengolahan penggajian dengan komponen gaji fleksibel dan perhitungan otomatis.',
                 ReceiptText,
             ),
             F(
-                'Lembur & attendance',
-                'Gunakan data kehadiran sebagai input perhitungan yang konsisten.',
-                ScanFace,
-            ),
-            F(
-                'Approval payroll',
-                'Tinjau hasil perhitungan sebelum payroll dirilis.',
-                UserCheck,
-            ),
-            F(
-                'Slip gaji digital',
-                'Karyawan mengakses slip gaji melalui kanal yang aman.',
+                'Info Payroll & Slip Gaji',
+                'Berikan portal penggajian mandiri 24/7 agar karyawan dapat melihat informasi dan slip gajinya.',
                 FileText,
             ),
             F(
-                'Export payroll',
-                'Gunakan hasil payroll untuk kebutuhan operasional dan pembayaran.',
-                FileCheck2,
+                'Analytics & Reporting',
+                'Gunakan statistik singkat, dashboard, laporan standar, feed informasi, dan pengingat berbasis AI untuk keputusan payroll.',
+                BarChart3,
+            ),
+            F(
+                'Panduan Payroll',
+                'Ikuti siklus payroll dari pemilihan periode, pembaruan data, absensi, pinjaman, pengeluaran, hingga proses selesai.',
+                ListChecks,
             ),
         ],
         steps: [
@@ -557,14 +865,14 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
         ],
         features: [
             F(
-                'Pengajuan reimbursement',
-                'Karyawan mengirim klaim dengan detail biaya yang lengkap.',
-                ReceiptText,
+                'Perencanaan Perjalanan Berbasis Anggaran',
+                'Kelola perjalanan dinas dari anggaran, pengajuan, approval, uang muka, hingga rekonsiliasi akhir.',
+                BriefcaseBusiness,
             ),
             F(
-                'Klaim perjalanan dinas',
-                'Pisahkan kebutuhan perjalanan dan pengeluaran kerja dengan rapi.',
-                BriefcaseBusiness,
+                'Layanan Mandiri untuk Uang Muka Perjalanan',
+                'Karyawan mengajukan uang muka dan melaporkan pengeluaran aktual untuk rekonsiliasi otomatis.',
+                ReceiptText,
             ),
             F(
                 'Upload bukti',
@@ -1371,90 +1679,91 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
         related: ['ai-hr', 'hr-helpdesk', 'ruang-kita', 'hr-analytics'],
     },
     'hr-helpdesk': {
-        name: 'HR Helpdesk',
+        name: 'Pusat Pengetahuan',
         category: 'Kolaborasi & Engagement',
         asset: 'hr-helpdesk.png',
-        title: 'Buat Kebutuhan Karyawan Lebih Mudah Ditangani lewat HR Helpdesk',
+        title: 'Bantu Karyawan Menemukan Jawaban dan Layanan dari Satu Pusat Pengetahuan',
         description:
-            'Kelola tiket, kategori, PIC, prioritas, SLA, dan percakapan karyawan dari satu dashboard.',
+            'Satukan FAQ, sumber daya, dan sistem tiket digital agar karyawan mendapat jawaban dan bantuan dengan alur yang lebih jelas.',
         heroNote:
-            'Pertanyaan karyawan punya jalur, PIC, dan status yang jelas.',
+            'Jawaban dan permintaan layanan punya tempat yang mudah ditemukan.',
         problems: [
-            'Pertanyaan HR masuk dari banyak kanal.',
-            'Tidak ada pemilik tiket yang jelas.',
-            'Karyawan harus menanyakan status berkali-kali.',
-            'Riwayat percakapan sulit ditelusuri.',
+            'Karyawan kesulitan menemukan jawaban dari FAQ dan kebijakan.',
+            'Permintaan layanan masuk tanpa alur dan prioritas yang jelas.',
+            'Tiket belum otomatis diarahkan ke tim yang tepat.',
+            'Pertanyaan berulang belum berubah menjadi pengetahuan bersama.',
         ],
         features: [
             F(
-                'Buat tiket',
-                'Karyawan mengirim kebutuhan tanpa mencari kontak HR.',
+                'Pusat FAQ & sumber daya',
+                'Karyawan mencari informasi dari FAQ dan sumber daya yang terorganisir secara instan.',
+                FileText,
+            ),
+            F(
+                'Sistem tiket digital',
+                'Karyawan mengajukan pertanyaan atau permintaan layanan secara online dan dapat mengikuti statusnya.',
                 TicketCheck,
             ),
             F(
-                'Kategori tiket',
-                'Kelompokkan kebutuhan agar mudah diarahkan.',
+                'Distribusi permintaan otomatis',
+                'Alokasikan tiket ke tim atau individu yang tepat agar respons lebih akurat dan beban kerja lebih seimbang.',
                 ListChecks,
             ),
             F(
-                'Assign PIC',
-                'Tentukan orang yang bertanggung jawab menangani tiket.',
-                UserCheck,
-            ),
-            F(
-                'Priority & SLA',
-                'Beri konteks urgensi dan target penyelesaian.',
-                Target,
-            ),
-            F(
-                'Riwayat percakapan',
-                'Simpan konteks komunikasi di tiket yang sama.',
+                'Komunikasi & Kolaborasi Terintegrasi',
+                'Fitur chat internal untuk percakapan yang langsung, transparan, dan terdokumentasi.',
                 MessageSquareText,
+                'hold',
             ),
             F(
-                'Dashboard tiket',
-                'Pantau antrean dan status penyelesaian HR.',
+                'Konversi pertanyaan ke FAQ',
+                'Ubah pertanyaan yang sering muncul menjadi FAQ yang mudah dicari untuk mendukung layanan mandiri.',
+                Sparkles,
+            ),
+            F(
+                'Pemantauan & Evaluasi Layanan',
+                'Ukur kualitas dukungan melalui penilaian kepuasan setelah tiket ditutup dan gunakan datanya untuk perbaikan layanan.',
                 BarChart3,
             ),
         ],
         steps: [
-            'Karyawan membuat tiket',
-            'HR menerima',
-            'PIC menangani',
-            'Tiket selesai',
+            'Karyawan mencari FAQ atau membuat tiket',
+            'Permintaan diarahkan otomatis',
+            'Tim terkait memberikan jawaban',
+            'Jawaban berulang dikonversi menjadi FAQ',
         ],
         benefits: [
-            'Pertanyaan tidak tercecer.',
-            'Status layanan lebih transparan.',
-            'Beban HR lebih mudah diprioritaskan.',
-            'Histori jawaban dapat digunakan kembali.',
+            'Karyawan menemukan jawaban lebih cepat.',
+            'Permintaan layanan terdokumentasi dan transparan.',
+            'Distribusi tiket membantu menyeimbangkan beban tim.',
+            'Pengetahuan terus bertambah dari pertanyaan yang berulang.',
         ],
         audience: [
-            'HR shared service',
+            'HR shared service dan pusat bantuan internal',
             'Perusahaan dengan banyak karyawan',
             'Tim HR multi cabang',
-            'Organisasi dengan SLA layanan internal',
+            'Organisasi dengan banyak pertanyaan berulang',
         ],
         faqs: [
             {
-                q: 'Bisa membuat kategori tiket?',
-                a: 'Bisa. Kategori membantu mengelompokkan kebutuhan dan mengarahkan tiket.',
+                q: 'Apakah karyawan dapat mencari FAQ sendiri?',
+                a: 'Bisa. FAQ dan sumber daya yang terorganisir membantu karyawan menemukan informasi tanpa selalu menghubungi HR.',
             },
             {
-                q: 'Bisa assign ke PIC?',
-                a: 'Bisa, sehingga pemilik penyelesaian terlihat jelas.',
+                q: 'Apakah tersedia sistem tiket digital?',
+                a: 'Bisa. Karyawan dapat mengajukan pertanyaan atau permintaan layanan secara online dan melihat statusnya.',
             },
             {
-                q: 'Bisa melihat status tiket?',
-                a: 'Bisa. Karyawan dan HR dapat mengikuti status sesuai hak akses.',
+                q: 'Bagaimana permintaan diarahkan ke tim?',
+                a: 'Distribusi dapat diatur agar tiket dialokasikan ke tim atau individu yang sesuai berdasarkan kebutuhan layanan.',
             },
             {
-                q: 'Apakah ada histori percakapan?',
-                a: 'Ya. Percakapan dan pembaruan tersimpan di dalam tiket.',
+                q: 'Apakah pertanyaan sering muncul dapat dijadikan FAQ?',
+                a: 'Bisa. Pertanyaan yang berulang dapat dikonversi menjadi FAQ yang mudah dicari.',
             },
             {
-                q: 'Bisa mengatur priority?',
-                a: 'Bisa, agar tiket yang mendesak dapat diprioritaskan.',
+                q: 'Apakah status dan prioritas tiket terlihat?',
+                a: 'Bisa. Status dan prioritas membantu karyawan serta tim layanan memahami progres dan urgensi permintaan.',
             },
         ],
         related: ['ai-hr', 'pengumuman-karyawan', 'survei-karyawan', 'core-hr'],
@@ -1930,6 +2239,9 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
 
 const FEATURE_SCREENSHOTS: Record<string, string[]> = {
     'core-hr': ['employees.png', 'dashboard.png'],
+    'data-karyawan': ['employees.png', 'dashboard.png'],
+    'struktur-organisasi': ['struktur-organisasi.png'],
+    'administrasi-karier': ['administrasi-karier.png'],
     'cuti-dan-izin': ['dashboard.png'],
     rekrutmen: ['rekrutmen.png'],
     'manajemen-kinerja': ['kinerja.png'],
@@ -1949,7 +2261,53 @@ const FEATURE_SCREENSHOTS: Record<string, string[]> = {
     'survei-karyawan': ['survei.png'],
     'kalender-perusahaan': ['kalender.png'],
     crm: ['crm.png'],
+    ess: ['employees.png'],
+    'otomatisasi-alur-kerja': ['dashboard.png'],
+    pelatihan: ['kinerja.png'],
+    'time-management': ['absensi.png'],
+    'manajemen-talenta': ['kinerja.png'],
+    'compensation-benefits': ['settlement.png'],
+    'loans-management': ['payroll.png'],
+    kpi: ['kinerja.png'],
+    'ai-analytics': ['analytics.png'],
 };
+
+function catalogPageToFeaturePage(
+    catalogPage: PublicFeatureCatalogEntry,
+    fallback?: FeaturePageData,
+): FeaturePageData {
+    return {
+        ...fallback,
+        name: catalogPage.name,
+        category: catalogPage.category,
+        asset: catalogPage.asset,
+        title: catalogPage.title,
+        description: catalogPage.description,
+        heroNote: catalogPage.heroNote,
+        problems: catalogPage.problems,
+        features: catalogPage.items.map((item) => ({
+            title: item.title,
+            description: item.description,
+            icon: CATALOG_ICON_MAP[item.icon] ?? ListChecks,
+            status: item.status,
+        })),
+        steps: catalogPage.steps,
+        benefits: catalogPage.benefits,
+        audience: catalogPage.audience,
+        faqs: catalogPage.faqs,
+        related: catalogPage.related,
+    };
+}
+
+function getFeaturePage(slug: string): FeaturePageData | undefined {
+    const catalogPage = PUBLIC_FEATURE_CATALOG[slug];
+
+    if (catalogPage) {
+        return catalogPageToFeaturePage(catalogPage, FEATURE_PAGES[slug]);
+    }
+
+    return FEATURE_PAGES[slug];
+}
 
 function featureUrl(slug: string): string {
     return slug === 'crm' ? solutionCrm.url() : featuresShow.url(slug);
@@ -2058,7 +2416,7 @@ export default function Feature({
     featureSlug: string;
     canonicalUrl: string;
 }) {
-    const page = FEATURE_PAGES[featureSlug];
+    const page = getFeaturePage(featureSlug);
     const { website } = usePage().props;
 
     if (!page) {
@@ -2340,7 +2698,12 @@ export default function Feature({
                             <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                 {page.features.map(
                                     (
-                                        { title, description, icon: Icon },
+                                        {
+                                            title,
+                                            description,
+                                            icon: Icon,
+                                            status,
+                                        },
                                         index,
                                     ) => (
                                         <Reveal
@@ -2355,10 +2718,16 @@ export default function Feature({
                                                         aria-hidden
                                                     />
                                                 </span>
-                                                <ArrowRight
-                                                    className="h-4 w-4 text-[#B8C4D8] transition-transform duration-200 group-hover:translate-x-1 group-hover:text-[#315FD4]"
-                                                    aria-hidden
-                                                />
+                                                {status === 'hold' ? (
+                                                    <span className="rounded-full bg-[#FFF4D6] px-2.5 py-1 text-[10px] font-bold tracking-[0.08em] text-[#9A6A00] uppercase">
+                                                        Segera hadir
+                                                    </span>
+                                                ) : (
+                                                    <ArrowRight
+                                                        className="h-4 w-4 text-[#B8C4D8] transition-transform duration-200 group-hover:translate-x-1 group-hover:text-[#315FD4]"
+                                                        aria-hidden
+                                                    />
+                                                )}
                                             </div>
                                             <h3 className="mt-6 text-[15px] leading-6 font-bold text-[#0E1A3A]">
                                                 {title}
@@ -2514,7 +2883,7 @@ export default function Feature({
                             />
                             <Reveal className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                                 {page.related.map((slug) => {
-                                    const related = FEATURE_PAGES[slug];
+                                    const related = getFeaturePage(slug);
 
                                     return related ? (
                                         <Link

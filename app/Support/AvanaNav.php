@@ -126,6 +126,7 @@ final class AvanaNav
                 // depends on the one before it. The screens that run against
                 // that setup follow after.
                 self::parent('payroll', 'Payroll', 'wallet', [
+                    self::leaf('payroll-dashboard', 'Dashboard', 'layout-dashboard', '/avana/payroll/dashboard', 'payroll', ['payroll']),
                     self::leaf('payroll', 'Payroll', 'wallet', '/avana/payroll', 'payroll', ['payroll']),
                     self::leaf('payroll-komponen', 'Master Komponen', 'layers', '/avana/payroll/komponen', 'payroll', ['payroll']),
                     self::leaf('payroll-master-gaji', 'Master Gaji', 'file-cog', '/avana/payroll/master-gaji', 'payroll', ['payroll']),

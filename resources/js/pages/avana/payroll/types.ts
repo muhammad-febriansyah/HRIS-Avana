@@ -91,6 +91,65 @@ export interface PayrollFilters {
     only_paid?: string | boolean;
 }
 
+export interface PayrollDashboardKpi {
+    key: string;
+    label: string;
+    icon: string;
+    color: string;
+    value: number;
+    previous_value: number;
+    change_percent: number | null;
+}
+
+export interface PayrollDashboardPoint {
+    label: string;
+    value: number;
+}
+
+export interface PayrollDashboardStatus {
+    key: string;
+    label: string;
+    count: number;
+    color: string;
+}
+
+export interface PayrollDashboardPayment {
+    key: string;
+    label: string;
+    amount: number;
+    count: number;
+    percentage: number;
+    color: string;
+    icon: string;
+}
+
+export interface PayrollDashboardDepartment {
+    code: string;
+    label: string;
+    value: number;
+    employee_count: number;
+}
+
+export interface PayrollDashboard {
+    period: string | null;
+    period_id: number | null;
+    previous_period: string | null;
+    period_options: { id: number; label: string }[];
+    kpis: PayrollDashboardKpi[];
+    comparison: {
+        current: number;
+        previous: number;
+        change_percent: number | null;
+        difference: number;
+    };
+    trend: PayrollDashboardPoint[];
+    distribution: PayrollDashboardPoint[];
+    status: PayrollDashboardStatus[];
+    departments: PayrollDashboardDepartment[];
+    payment_summary: PayrollDashboardPayment[];
+    insight: string;
+}
+
 export interface PayrollProps {
     periods: {
         data: Period[];

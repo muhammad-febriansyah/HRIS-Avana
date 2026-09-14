@@ -40,6 +40,9 @@ class SitemapController extends Controller
                 'changefreq' => 'monthly',
                 'priority' => in_array($featureSlug, [
                     'core-hr',
+                    'data-karyawan',
+                    'struktur-organisasi',
+                    'administrasi-karier',
                     'payroll',
                     'absensi-karyawan',
                     'cuti-dan-izin',

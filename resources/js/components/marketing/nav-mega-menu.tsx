@@ -10,10 +10,56 @@ import type { Solution } from './content';
 import { MODULES } from './modules-section';
 import type { Module } from './modules-section';
 
-export type ProductMenuGroup = { title: string; items: Module[] };
+export type ProductMenuItem = Module & { href: string };
+export type ProductMenuGroup = { title: string; items: ProductMenuItem[] };
+
+const FEATURE_SLUG_BY_TITLE: Record<string, string> = {
+    'Core HR': 'core-hr',
+    'Data Karyawan': 'data-karyawan',
+    'Struktur Organisasi': 'struktur-organisasi',
+    'Administrasi Karier': 'administrasi-karier',
+    ESS: 'ess',
+    'Otomatisasi Alur Kerja': 'otomatisasi-alur-kerja',
+    Pelatihan: 'pelatihan',
+    'Time Management': 'time-management',
+    'Manajemen Talenta': 'manajemen-talenta',
+    'Compensation & Benefits': 'compensation-benefits',
+    'Loans Management': 'loans-management',
+    KPI: 'kpi',
+    'AI & Analytics': 'ai-analytics',
+    'Leave & Cuti': 'cuti-dan-izin',
+    Recruitment: 'rekrutmen',
+    Performance: 'manajemen-kinerja',
+    Payroll: 'payroll',
+    Settlement: 'reimbursement',
+    CRM: 'crm',
+    Attendance: 'absensi-karyawan',
+    'Live Tracking': 'live-tracking-karyawan',
+    'Visiting Pekerjaan': 'kunjungan-karyawan',
+    'AI Intelligence': 'ai-hr',
+    'Workforce Analytics': 'hr-analytics',
+    'Prediksi Risiko Resign': 'prediksi-risiko-resign',
+    'Rapat & Transkrip': 'transkrip-rapat-ai',
+    'Pusat Pengetahuan': 'hr-helpdesk',
+    'Mood Karyawan': 'mood-karyawan',
+    'Ruang Kita': 'ruang-kita',
+    Pengumuman: 'pengumuman-karyawan',
+    'Survei Karyawan': 'survei-karyawan',
+    'Kalender Acara': 'kalender-perusahaan',
+};
+
+function featureMenuHref(title: string, fallback: string): string {
+    const slug = FEATURE_SLUG_BY_TITLE[title];
+
+    if (!slug) {
+        return fallback;
+    }
+
+    return slug === 'crm' ? solutionCrm.url() : featureShow.url(slug);
+}
 
 /**
- * The 20 concrete modules from `MODULES`, grouped into 4 columns for the
+ * The concrete modules from `MODULES`, grouped into 4 columns for the
  * "Fitur" mega menu. Keep the titles below in sync with `MODULES` in
  * modules-section.tsx — an unknown title throws at import time instead of
  * silently dropping a module from the menu.
@@ -21,15 +67,38 @@ export type ProductMenuGroup = { title: string; items: Module[] };
 const PRODUCT_MENU_GROUP_TITLES: { title: string; modules: string[] }[] = [
     {
         title: 'HR & Karyawan',
-        modules: ['Core HR', 'Leave & Cuti', 'Recruitment', 'Performance'],
+        modules: [
+            'Core HR',
+            'Data Karyawan',
+            'Struktur Organisasi',
+            'Leave & Cuti',
+            'Recruitment',
+            'Performance',
+            'Administrasi Karier',
+            'ESS',
+            'Otomatisasi Alur Kerja',
+            'Pelatihan',
+            'Manajemen Talenta',
+        ],
     },
     {
         title: 'Payroll & Bisnis',
-        modules: ['Payroll', 'Settlement', 'CRM'],
+        modules: [
+            'Payroll',
+            'Settlement',
+            'Compensation & Benefits',
+            'Loans Management',
+            'CRM',
+        ],
     },
     {
         title: 'Attendance & Lapangan',
-        modules: ['Attendance', 'Live Tracking', 'Visiting Pekerjaan'],
+        modules: [
+            'Attendance',
+            'Time Management',
+            'Live Tracking',
+            'Visiting Pekerjaan',
+        ],
     },
     {
         title: 'AI & Analytics',
@@ -38,12 +107,14 @@ const PRODUCT_MENU_GROUP_TITLES: { title: string; modules: string[] }[] = [
             'Workforce Analytics',
             'Prediksi Risiko Resign',
             'Rapat & Transkrip',
+            'KPI',
+            'AI & Analytics',
         ],
     },
     {
         title: 'Kolaborasi & Engagement',
         modules: [
-            'HR Helpdesk',
+            'Pusat Pengetahuan',
             'Mood Karyawan',
             'Ruang Kita',
             'Pengumuman',
@@ -71,44 +142,14 @@ export const PRODUCT_MENU_GROUPS: ProductMenuGroup[] =
                 );
             }
 
-            return module;
+            return {
+                ...module,
+                href: featureMenuHref(title, '#platform'),
+            };
         }),
     }));
 
 export const SOLUTION_MENU_ITEMS: Solution[] = SOLUTIONS;
-
-const FEATURE_SLUG_BY_TITLE: Record<string, string> = {
-    'Core HR': 'core-hr',
-    'Leave & Cuti': 'cuti-dan-izin',
-    Recruitment: 'rekrutmen',
-    Performance: 'manajemen-kinerja',
-    Payroll: 'payroll',
-    Settlement: 'reimbursement',
-    CRM: 'crm',
-    Attendance: 'absensi-karyawan',
-    'Live Tracking': 'live-tracking-karyawan',
-    'Visiting Pekerjaan': 'kunjungan-karyawan',
-    'AI Intelligence': 'ai-hr',
-    'Workforce Analytics': 'hr-analytics',
-    'Prediksi Risiko Resign': 'prediksi-risiko-resign',
-    'Rapat & Transkrip': 'transkrip-rapat-ai',
-    'HR Helpdesk': 'hr-helpdesk',
-    'Mood Karyawan': 'mood-karyawan',
-    'Ruang Kita': 'ruang-kita',
-    Pengumuman: 'pengumuman-karyawan',
-    'Survei Karyawan': 'survei-karyawan',
-    'Kalender Acara': 'kalender-perusahaan',
-};
-
-function featureMenuHref(title: string, fallback: string): string {
-    const slug = FEATURE_SLUG_BY_TITLE[title];
-
-    if (!slug) {
-        return fallback;
-    }
-
-    return slug === 'crm' ? solutionCrm.url() : featureShow.url(slug);
-}
 
 /**
  * Hover/click-controlled dropdown wrapper for a top-nav item. Desktop only —
@@ -208,7 +249,7 @@ export function NavDropdown({
             {open && (
                 <div
                     className={cn(
-                        'absolute top-full left-1/2 z-50 mt-3 -translate-x-1/2 rounded-2xl border border-avana-border bg-white p-5 shadow-avana-card',
+                        'absolute top-full left-1/2 z-50 mt-3 max-h-[calc(100vh-8rem)] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-2xl border border-avana-border bg-white p-5 shadow-avana-card',
                         panelClassName,
                     )}
                 >
@@ -237,17 +278,17 @@ export function FeaturesMegaMenuPanel({
     solutionHref: string;
 }) {
     return (
-        <div className="w-[min(980px,calc(100vw-3rem))]">
+        <div className="w-full">
             <div className="grid grid-cols-2 gap-x-8 gap-y-6 lg:grid-cols-5 lg:gap-x-0 lg:divide-x lg:divide-avana-border">
                 {groups.map((group, index) => (
                     <div
                         key={group.title}
                         className={cn(
-                            index > 0 && 'lg:pl-5',
-                            index < groups.length - 1 && 'lg:pr-5',
+                            index > 0 && 'lg:pl-6',
+                            index < groups.length - 1 && 'lg:pr-6',
                         )}
                     >
-                        <p className="mb-3 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-avana-text/50 uppercase">
+                        <p className="mb-4 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-avana-text/50 uppercase">
                             {group.title}
                             {group.title === NATIVE_GROUP_TITLE && (
                                 <span className="rounded-full bg-avana-light px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-avana-blue normal-case">
@@ -255,17 +296,14 @@ export function FeaturesMegaMenuPanel({
                                 </span>
                             )}
                         </p>
-                        <ul className="space-y-3">
+                        <ul className="space-y-2.5">
                             {group.items.map((item) => {
                                 const Icon = item.icon;
 
                                 return (
                                     <li key={item.title}>
                                         <Link
-                                            href={featureMenuHref(
-                                                item.title,
-                                                platformHref,
-                                            )}
+                                            href={item.href}
                                             className="group -m-1.5 flex items-start gap-3 rounded-xl p-1.5 hover:bg-avana-soft"
                                         >
                                             <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-avana-light text-avana-blue">
