@@ -13,17 +13,13 @@ import { BrandLogo } from './brand-logo';
 import { NAV_ITEMS } from './content';
 import {
     FeaturesMegaMenuPanel,
-    NATIVE_GROUP_TITLE,
     NavDropdown,
-    PRODUCT_MENU_GROUPS,
-    SOLUTION_MENU_ITEMS,
+    PRODUCT_MENU_ITEMS,
 } from './nav-mega-menu';
 import { useCtaTargets } from './use-cta';
 
 /** Which top-nav items open a dropdown/mega menu instead of jumping straight
- * to their anchor — keyed by `NAV_ITEMS[].name`. "Fitur" groups what used to
- * be three separate items (Produk & Modul, Solusi Terpadu, AI & Analytics)
- * into a single mega menu. */
+ * to their anchor — keyed by `NAV_ITEMS[].name`. */
 const MENU_BY_NAME: Record<string, 'features' | undefined> = {
     Fitur: 'features',
 };
@@ -223,13 +219,11 @@ export function SiteNavbar({
                                     isActive={item.isActive}
                                     panel={
                                         <FeaturesMegaMenuPanel
-                                            groups={PRODUCT_MENU_GROUPS}
-                                            solutions={SOLUTION_MENU_ITEMS}
+                                            items={PRODUCT_MENU_ITEMS}
                                             platformHref={item.href}
-                                            solutionHref={`${anchorPrefix}#solusi`}
                                         />
                                     }
-                                    panelClassName="box-border w-[min(1400px,calc(100vw-2rem))]"
+                                    panelClassName="box-border w-[min(820px,calc(100vw-2rem))]"
                                 />
                             );
                         }
@@ -363,67 +357,22 @@ export function SiteNavbar({
                                         </button>
 
                                         {expanded && (
-                                            <div className="mt-1 mb-2 space-y-4 rounded-xl bg-avana-soft px-4 py-3">
-                                                {PRODUCT_MENU_GROUPS.map(
-                                                    (group) => (
-                                                        <div key={group.title}>
-                                                            <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-avana-text/50 uppercase">
-                                                                {group.title}
-                                                                {group.title ===
-                                                                    NATIVE_GROUP_TITLE && (
-                                                                    <span className="rounded-full bg-avana-light px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-avana-blue normal-case">
-                                                                        Native
-                                                                    </span>
-                                                                )}
-                                                            </p>
-                                                            <ul className="space-y-0.5">
-                                                                {group.items.map(
-                                                                    (
-                                                                        module,
-                                                                    ) => (
-                                                                        <li
-                                                                            key={
-                                                                                module.title
-                                                                            }
-                                                                        >
-                                                                            <a
-                                                                                href={
-                                                                                    module.href
-                                                                                }
-                                                                                onClick={() => {
-                                                                                    setMobileOpen(
-                                                                                        false,
-                                                                                    );
-                                                                                    setMobileExpanded(
-                                                                                        null,
-                                                                                    );
-                                                                                }}
-                                                                                className="block rounded-lg px-2 py-1.5 text-[14px] text-avana-text hover:bg-white"
-                                                                            >
-                                                                                {
-                                                                                    module.title
-                                                                                }
-                                                                            </a>
-                                                                        </li>
-                                                                    ),
-                                                                )}
-                                                            </ul>
-                                                        </div>
-                                                    ),
-                                                )}
-
-                                                <div>
-                                                    <p className="mb-1.5 text-[11px] font-bold tracking-wider text-avana-text/50 uppercase">
-                                                        Solusi Terpadu
-                                                    </p>
-                                                    <div className="flex flex-wrap gap-1.5">
-                                                        {SOLUTION_MENU_ITEMS.map(
-                                                            (solution) => (
-                                                                <a
-                                                                    key={
-                                                                        solution.id
+                                            <div className="mt-1 mb-2 rounded-xl bg-avana-soft px-4 py-3">
+                                                <p className="mb-2 text-[11px] font-bold tracking-wider text-avana-text/50 uppercase">
+                                                    Modul AvanaHR
+                                                </p>
+                                                <ul className="grid gap-0.5 sm:grid-cols-2">
+                                                    {PRODUCT_MENU_ITEMS.map(
+                                                        (module) => (
+                                                            <li
+                                                                key={
+                                                                    module.title
+                                                                }
+                                                            >
+                                                                <Link
+                                                                    href={
+                                                                        module.href
                                                                     }
-                                                                    href={`${anchorPrefix}#solusi`}
                                                                     onClick={() => {
                                                                         setMobileOpen(
                                                                             false,
@@ -432,16 +381,16 @@ export function SiteNavbar({
                                                                             null,
                                                                         );
                                                                     }}
-                                                                    className="rounded-full border border-avana-border bg-white px-2.5 py-1 text-[12.5px] font-medium text-avana-text"
+                                                                    className="flex min-h-11 items-center rounded-lg px-2 py-1.5 text-[14px] font-medium text-avana-text hover:bg-white hover:text-avana-blue"
                                                                 >
                                                                     {
-                                                                        solution.title
+                                                                        module.title
                                                                     }
-                                                                </a>
-                                                            ),
-                                                        )}
-                                                    </div>
-                                                </div>
+                                                                </Link>
+                                                            </li>
+                                                        ),
+                                                    )}
+                                                </ul>
                                             </div>
                                         )}
                                     </li>

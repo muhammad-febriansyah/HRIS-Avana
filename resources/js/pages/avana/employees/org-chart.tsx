@@ -22,6 +22,7 @@ interface OrgNode {
     employee_number: string;
     email: string | null;
     phone: string | null;
+    photo_url: string | null;
     position: string | null;
     department: string | null;
     branch: string | null;
@@ -144,23 +145,37 @@ function OrgCard({ data }: NodeProps<CardData>) {
                         gap: 9,
                     }}
                 >
-                    <div
-                        style={{
-                            width: 34,
-                            height: 34,
-                            borderRadius: '50%',
-                            flex: 'none',
-                            background: color,
-                            color: '#fff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: 12,
-                            fontWeight: 600,
-                        }}
-                    >
-                        {initials(node.name)}
-                    </div>
+                    {node.photo_url ? (
+                        <img
+                            src={node.photo_url}
+                            alt={node.name}
+                            style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: '50%',
+                                flex: 'none',
+                                objectFit: 'cover',
+                            }}
+                        />
+                    ) : (
+                        <div
+                            style={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: '50%',
+                                flex: 'none',
+                                background: color,
+                                color: '#fff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: 12,
+                                fontWeight: 600,
+                            }}
+                        >
+                            {initials(node.name)}
+                        </div>
+                    )}
                     <div style={{ minWidth: 0, lineHeight: 1.35 }}>
                         <div
                             style={{

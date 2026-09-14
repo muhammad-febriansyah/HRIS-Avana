@@ -145,6 +145,18 @@ export function RekapTable({
                                     textTransform: 'uppercase',
                                 }}
                             >
+                                Tanggal Absen
+                            </th>
+                            <th
+                                style={{
+                                    padding: '11px 16px',
+                                    textAlign: 'left',
+                                    fontSize: 11.5,
+                                    fontWeight: 600,
+                                    color: C.faint,
+                                    textTransform: 'uppercase',
+                                }}
+                            >
                                 Telat
                             </th>
                             <th
@@ -181,7 +193,7 @@ export function RekapTable({
                                 }}
                             >
                                 <td
-                                    colSpan={7}
+                                    colSpan={8}
                                     style={{
                                         padding: '48px 18px',
                                         textAlign: 'center',
@@ -297,6 +309,16 @@ export function RekapTable({
                                         }}
                                     >
                                         {row.clock_out}
+                                    </td>
+                                    <td
+                                        style={{
+                                            padding: '12px 16px',
+                                            fontSize: 13,
+                                            color: C.text,
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {row.date}
                                     </td>
                                     <td
                                         style={{

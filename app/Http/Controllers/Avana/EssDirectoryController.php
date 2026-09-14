@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Support\PrivateFile;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -32,7 +33,7 @@ class EssDirectoryController extends Controller
             ->where('status', 'active')
             ->with(['position:id,name', 'department:id,name', 'branch:id,name'])
             ->orderBy('full_name')
-            ->get(['id', 'public_id', 'full_name', 'employee_number', 'email', 'phone', 'position_id', 'department_id', 'branch_id', 'manager_id', 'join_date', 'is_top_approver']);
+            ->get(['id', 'public_id', 'full_name', 'employee_number', 'email', 'phone', 'photo_path', 'position_id', 'department_id', 'branch_id', 'manager_id', 'join_date', 'is_top_approver']);
 
         $names = $colleagues->pluck('full_name', 'id');
 
@@ -49,6 +50,7 @@ class EssDirectoryController extends Controller
                 'employee_number' => $colleague->employee_number,
                 'email' => $colleague->email,
                 'phone' => $colleague->phone,
+                'photo_url' => PrivateFile::urlFor($colleague->photo_path),
                 'position' => $colleague->position?->name,
                 'department' => $colleague->department?->name,
                 'branch' => $colleague->branch?->name,

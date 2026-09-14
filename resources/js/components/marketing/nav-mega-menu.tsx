@@ -4,152 +4,101 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { show as featureShow } from '@/routes/features';
-import { crm as solutionCrm } from '@/routes/solution';
-import { SOLUTIONS } from './content';
-import type { Solution } from './content';
 import { MODULES } from './modules-section';
 import type { Module } from './modules-section';
 
-export type ProductMenuItem = Module & { href: string };
-export type ProductMenuGroup = { title: string; items: ProductMenuItem[] };
-
-const FEATURE_SLUG_BY_TITLE: Record<string, string> = {
-    'Core HR': 'core-hr',
-    'Data Karyawan': 'data-karyawan',
-    'Struktur Organisasi': 'struktur-organisasi',
-    'Administrasi Karier': 'administrasi-karier',
-    ESS: 'ess',
-    'Otomatisasi Alur Kerja': 'otomatisasi-alur-kerja',
-    Pelatihan: 'pelatihan',
-    'Time Management': 'time-management',
-    'Manajemen Talenta': 'manajemen-talenta',
-    'Compensation & Benefits': 'compensation-benefits',
-    'Loans Management': 'loans-management',
-    KPI: 'kpi',
-    'AI & Analytics': 'ai-analytics',
-    'Leave & Cuti': 'cuti-dan-izin',
-    Recruitment: 'rekrutmen',
-    Performance: 'manajemen-kinerja',
-    Payroll: 'payroll',
-    Settlement: 'reimbursement',
-    CRM: 'crm',
-    Attendance: 'absensi-karyawan',
-    'Live Tracking': 'live-tracking-karyawan',
-    'Visiting Pekerjaan': 'kunjungan-karyawan',
-    'AI Intelligence': 'ai-hr',
-    'Workforce Analytics': 'hr-analytics',
-    'Prediksi Risiko Resign': 'prediksi-risiko-resign',
-    'Rapat & Transkrip': 'transkrip-rapat-ai',
-    'Pusat Pengetahuan': 'hr-helpdesk',
-    'Mood Karyawan': 'mood-karyawan',
-    'Ruang Kita': 'ruang-kita',
-    Pengumuman: 'pengumuman-karyawan',
-    'Survei Karyawan': 'survei-karyawan',
-    'Kalender Acara': 'kalender-perusahaan',
+export type ProductMenuItem = Pick<Module, 'icon'> & {
+    title: string;
+    href: string;
 };
 
-function featureMenuHref(title: string, fallback: string): string {
-    const slug = FEATURE_SLUG_BY_TITLE[title];
-
-    if (!slug) {
-        return fallback;
-    }
-
-    return slug === 'crm' ? solutionCrm.url() : featureShow.url(slug);
-}
+type ProductMenuDefinition = {
+    title: string;
+    moduleTitle: string;
+    slug: string;
+};
 
 /**
- * The concrete modules from `MODULES`, grouped into 4 columns for the
- * "Fitur" mega menu. Keep the titles below in sync with `MODULES` in
- * modules-section.tsx — an unknown title throws at import time instead of
- * silently dropping a module from the menu.
+ * Parent modules shown in the "Fitur" mega menu. Submodules and feature
+ * details stay on their parent pages, matching the product navigation pattern
+ * from the reference site.
  */
-const PRODUCT_MENU_GROUP_TITLES: { title: string; modules: string[] }[] = [
+const PRODUCT_MENU_DEFINITIONS: ProductMenuDefinition[] = [
     {
-        title: 'HR & Karyawan',
-        modules: [
-            'Core HR',
-            'Data Karyawan',
-            'Struktur Organisasi',
-            'Leave & Cuti',
-            'Recruitment',
-            'Performance',
-            'Administrasi Karier',
-            'ESS',
-            'Otomatisasi Alur Kerja',
-            'Pelatihan',
-            'Manajemen Talenta',
-        ],
+        title: 'HR Core',
+        moduleTitle: 'Core HR',
+        slug: 'core-hr',
     },
     {
-        title: 'Payroll & Bisnis',
-        modules: [
-            'Payroll',
-            'Settlement',
-            'Compensation & Benefits',
-            'Loans Management',
-            'CRM',
-        ],
+        title: 'Payroll',
+        moduleTitle: 'Payroll',
+        slug: 'payroll',
     },
     {
-        title: 'Attendance & Lapangan',
-        modules: [
-            'Attendance',
-            'Time Management',
-            'Live Tracking',
-            'Visiting Pekerjaan',
-        ],
+        title: 'Pelatihan',
+        moduleTitle: 'Pelatihan',
+        slug: 'pelatihan',
+    },
+    {
+        title: 'Recruitment',
+        moduleTitle: 'Recruitment',
+        slug: 'rekrutmen',
+    },
+    {
+        title: 'Time Management',
+        moduleTitle: 'Time Management',
+        slug: 'time-management',
+    },
+    {
+        title: 'Manajemen Talenta',
+        moduleTitle: 'Manajemen Talenta',
+        slug: 'manajemen-talenta',
+    },
+    {
+        title: 'Compensation & Benefits',
+        moduleTitle: 'Compensation & Benefits',
+        slug: 'compensation-benefits',
+    },
+    {
+        title: 'Expenses & Reimbursement',
+        moduleTitle: 'Settlement',
+        slug: 'reimbursement',
+    },
+    {
+        title: 'Loans Management',
+        moduleTitle: 'Loans Management',
+        slug: 'loans-management',
+    },
+    {
+        title: 'KPI',
+        moduleTitle: 'KPI',
+        slug: 'kpi',
     },
     {
         title: 'AI & Analytics',
-        modules: [
-            'AI Intelligence',
-            'Workforce Analytics',
-            'Prediksi Risiko Resign',
-            'Rapat & Transkrip',
-            'KPI',
-            'AI & Analytics',
-        ],
-    },
-    {
-        title: 'Kolaborasi & Engagement',
-        modules: [
-            'Pusat Pengetahuan',
-            'Mood Karyawan',
-            'Ruang Kita',
-            'Pengumuman',
-            'Survei Karyawan',
-            'Kalender Acara',
-        ],
+        moduleTitle: 'AI & Analytics',
+        slug: 'ai-analytics',
     },
 ];
 
-/** This group gets a small "Native" badge next to its column header instead
- * of repeating the tag on every item inside. */
-export const NATIVE_GROUP_TITLE = 'AI & Analytics';
+export const PRODUCT_MENU_ITEMS: ProductMenuItem[] =
+    PRODUCT_MENU_DEFINITIONS.map(({ title, moduleTitle, slug }) => {
+        const module = MODULES.find(
+            (candidate) => candidate.title === moduleTitle,
+        );
 
-export const PRODUCT_MENU_GROUPS: ProductMenuGroup[] =
-    PRODUCT_MENU_GROUP_TITLES.map((group) => ({
-        title: group.title,
-        items: group.modules.map((title) => {
-            const module = MODULES.find(
-                (candidate) => candidate.title === title,
+        if (!module) {
+            throw new Error(
+                `nav-mega-menu: unknown parent module "${moduleTitle}"`,
             );
+        }
 
-            if (!module) {
-                throw new Error(
-                    `nav-mega-menu: unknown module "${title}" in PRODUCT_MENU_GROUP_TITLES`,
-                );
-            }
-
-            return {
-                ...module,
-                href: featureMenuHref(title, '#platform'),
-            };
-        }),
-    }));
-
-export const SOLUTION_MENU_ITEMS: Solution[] = SOLUTIONS;
+        return {
+            title,
+            icon: module.icon,
+            href: featureShow.url(slug),
+        };
+    });
 
 /**
  * Hover/click-controlled dropdown wrapper for a top-nav item. Desktop only —
@@ -261,88 +210,40 @@ export function NavDropdown({
 }
 
 /**
- * "Fitur" mega menu — the single consolidated dropdown grouping everything
- * that used to be three separate nav items (Produk & Modul, Solusi Terpadu,
- * AI & Analytics): 4 evenly-sized module-group columns as the main grid,
- * plus "Solusi Terpadu" as a compact chip row underneath.
+ * "Fitur" mega menu — only parent modules are shown here. The detailed
+ * submodule navigation will live on each parent feature page.
  */
 export function FeaturesMegaMenuPanel({
-    groups,
-    solutions,
+    items,
     platformHref,
-    solutionHref,
 }: {
-    groups: ProductMenuGroup[];
-    solutions: Solution[];
+    items: ProductMenuItem[];
     platformHref: string;
-    solutionHref: string;
 }) {
     return (
         <div className="w-full">
-            <div className="grid grid-cols-2 gap-x-8 gap-y-6 lg:grid-cols-5 lg:gap-x-0 lg:divide-x lg:divide-avana-border">
-                {groups.map((group, index) => (
-                    <div
-                        key={group.title}
-                        className={cn(
-                            index > 0 && 'lg:pl-6',
-                            index < groups.length - 1 && 'lg:pr-6',
-                        )}
-                    >
-                        <p className="mb-4 flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-avana-text/50 uppercase">
-                            {group.title}
-                            {group.title === NATIVE_GROUP_TITLE && (
-                                <span className="rounded-full bg-avana-light px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-avana-blue normal-case">
-                                    Native
+            <p className="mb-4 text-[11px] font-bold tracking-wider text-avana-text/50 uppercase">
+                Modul AvanaHR
+            </p>
+            <ul className="grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2">
+                {items.map((item) => {
+                    const Icon = item.icon;
+
+                    return (
+                        <li key={item.title}>
+                            <Link
+                                href={item.href}
+                                className="group flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-semibold text-avana-navy transition-colors hover:bg-avana-soft hover:text-avana-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-avana-blue"
+                            >
+                                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-avana-light text-avana-blue">
+                                    <Icon className="h-4 w-4" aria-hidden />
                                 </span>
-                            )}
-                        </p>
-                        <ul className="space-y-2.5">
-                            {group.items.map((item) => {
-                                const Icon = item.icon;
-
-                                return (
-                                    <li key={item.title}>
-                                        <Link
-                                            href={item.href}
-                                            className="group -m-1.5 flex items-start gap-3 rounded-xl p-1.5 hover:bg-avana-soft"
-                                        >
-                                            <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-avana-light text-avana-blue">
-                                                <Icon
-                                                    className="h-4 w-4"
-                                                    aria-hidden
-                                                />
-                                            </span>
-                                            <span>
-                                                <span className="block text-[13.5px] font-semibold text-avana-navy group-hover:text-avana-blue">
-                                                    {item.title}
-                                                </span>
-                                                <span className="block text-[12px] text-avana-text/60">
-                                                    {item.tagline}
-                                                </span>
-                                            </span>
-                                        </Link>
-                                    </li>
-                                );
-                            })}
-                        </ul>
-                    </div>
-                ))}
-            </div>
-
-            <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-avana-border pt-5">
-                <span className="mr-1 text-[11px] font-bold tracking-wider text-avana-text/50 uppercase">
-                    Solusi Terpadu
-                </span>
-                {solutions.map((solution) => (
-                    <a
-                        key={solution.id}
-                        href={solutionHref}
-                        className="rounded-full border border-avana-border px-3 py-1.5 text-[12.5px] font-medium text-avana-text transition-colors hover:border-avana-blue hover:text-avana-blue"
-                    >
-                        {solution.title}
-                    </a>
-                ))}
-            </div>
+                                {item.title}
+                            </Link>
+                        </li>
+                    );
+                })}
+            </ul>
 
             <a
                 href={platformHref}

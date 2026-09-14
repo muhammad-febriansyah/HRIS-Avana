@@ -27,6 +27,7 @@ use App\Models\UserDevice;
 use App\Models\WorkLocation;
 use App\Support\ContractType;
 use App\Support\EmployeeIdentity;
+use App\Support\PrivateFile;
 use App\Support\SalaryCompliance;
 use App\Support\TenantQuota;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -470,7 +471,7 @@ class EmployeeController extends Controller
             ->where('status', 'active')
             ->with(['position:id,name', 'department:id,name', 'branch:id,name'])
             ->orderBy('full_name')
-            ->get(['id', 'public_id', 'full_name', 'employee_number', 'email', 'phone', 'position_id', 'department_id', 'branch_id', 'manager_id', 'join_date', 'is_top_approver']);
+            ->get(['id', 'public_id', 'full_name', 'employee_number', 'email', 'phone', 'photo_path', 'position_id', 'department_id', 'branch_id', 'manager_id', 'join_date', 'is_top_approver']);
 
         $names = $employees->pluck('full_name', 'id');
 
@@ -482,6 +483,7 @@ class EmployeeController extends Controller
                 'employee_number' => $employee->employee_number,
                 'email' => $employee->email,
                 'phone' => $employee->phone,
+                'photo_url' => PrivateFile::urlFor($employee->photo_path),
                 'position' => $employee->position?->name,
                 'department' => $employee->department?->name,
                 'branch' => $employee->branch?->name,

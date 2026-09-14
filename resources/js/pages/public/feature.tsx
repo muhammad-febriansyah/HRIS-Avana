@@ -41,6 +41,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { DemoButton, TrialButton } from '@/components/marketing/cta-buttons';
 import { FaqSection } from '@/components/marketing/faq-section';
+import { FeatureSubnav } from '@/components/marketing/feature-subnav';
 import { FinalCta } from '@/components/marketing/final-cta';
 import {
     Container,
@@ -2519,6 +2520,7 @@ export default function Feature({
                 className="min-h-dvh overflow-x-clip bg-white font-sans text-[#1A2333] antialiased"
             >
                 <SiteNavbar brand={brand} logo={logo} anchorPrefix="/" />
+                <FeatureSubnav currentSlug={featureSlug} />
 
                 <main>
                     <section className="relative overflow-hidden border-b border-[#E8EEF8] bg-[#F7FAFF] pt-10 pb-16 sm:pt-14 sm:pb-24 lg:pt-16 lg:pb-28">
