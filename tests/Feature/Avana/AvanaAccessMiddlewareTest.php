@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Role;
+use App\Models\RoleMenuVisibility;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -47,4 +48,19 @@ it('enforces the gate on real sub-routes by prefix', function (): void {
     // /avana/kinerja/create inherits the performance gate (not a menu leaf).
     actingAs($this->manager)->get('/avana/kinerja/create')->assertForbidden();
     actingAs($this->admin)->get('/avana/kinerja/create')->assertOk();
+});
+
+it('allows module report exports when the laporan menu is hidden', function (): void {
+    $adminRole = $this->admin->roles()->where('code', 'admin_tenant_hr')->firstOrFail();
+
+    RoleMenuVisibility::create([
+        'tenant_id' => $this->tenant->id,
+        'role_id' => $adminRole->id,
+        'menu_key' => 'laporan',
+        'is_visible' => false,
+    ]);
+
+    actingAs($this->admin)
+        ->get('/avana/laporan/export/absensi')
+        ->assertOk();
 });

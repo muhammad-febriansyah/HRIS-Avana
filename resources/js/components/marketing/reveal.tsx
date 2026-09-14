@@ -78,13 +78,13 @@ export function SectionHeading({
             )}
             <h2
                 id={id}
-                className={`mt-4 font-bold tracking-[-0.02em] text-balance ${isCompact ? 'text-[26px] leading-[1.2] sm:text-3xl lg:text-[38px]' : 'text-[28px] leading-[1.15] sm:text-4xl lg:text-[42px]'} ${isDark ? 'text-white' : 'text-[#0E1A3A]'}`}
+                className={`mt-5 font-bold tracking-[-0.02em] text-balance ${isCompact ? 'text-[26px] leading-[1.28] sm:text-3xl sm:leading-[1.25] lg:text-[38px] lg:leading-[1.22]' : 'text-[28px] leading-[1.2] sm:text-4xl sm:leading-[1.18] lg:text-[42px] lg:leading-[1.18]'} ${isDark ? 'text-white' : 'text-[#0E1A3A]'}`}
             >
                 {title}
             </h2>
             {description && (
                 <p
-                    className={`mt-4 text-pretty ${isCompact ? 'text-[14px] leading-7 sm:text-base' : 'text-[15px] leading-relaxed sm:text-[17px]'} ${isDark ? 'text-blue-100/80' : 'text-[#5B6478]'}`}
+                    className={`mt-6 text-pretty ${isCompact ? 'text-[14px] leading-[1.75] sm:text-base' : 'text-[15px] leading-[1.75] sm:text-[17px]'} ${isDark ? 'text-blue-100/80' : 'text-[#5B6478]'}`}
                 >
                     {description}
                 </p>

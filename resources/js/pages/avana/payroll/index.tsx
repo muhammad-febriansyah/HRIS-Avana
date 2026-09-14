@@ -528,7 +528,9 @@ export default function AvanaPayroll({
                                             position: 'absolute',
                                             right: 0,
                                             top: 46,
-                                            width: 268,
+                                            width: 360,
+                                            maxWidth: 'calc(100vw - 24px)',
+                                            boxSizing: 'border-box',
                                             background: '#fff',
                                             border: `1px solid ${C.border}`,
                                             borderRadius: 10,
@@ -629,6 +631,7 @@ export default function AvanaPayroll({
                                                     setBank(e.target.value)
                                                 }
                                                 style={{
+                                                    minWidth: 0,
                                                     flex: 1,
                                                     height: 36,
                                                     padding: '0 10px',
@@ -659,6 +662,9 @@ export default function AvanaPayroll({
                                                     style={{
                                                         ...btnExport,
                                                         height: 36,
+                                                        flexShrink: 0,
+                                                        padding: '0 12px',
+                                                        whiteSpace: 'nowrap',
                                                         textDecoration: 'none',
                                                     }}
                                                 >
@@ -675,6 +681,9 @@ export default function AvanaPayroll({
                                                     style={{
                                                         ...btnP,
                                                         height: 36,
+                                                        flexShrink: 0,
+                                                        padding: '0 12px',
+                                                        whiteSpace: 'nowrap',
                                                         opacity: 0.5,
                                                         cursor: 'not-allowed',
                                                     }}
@@ -836,7 +845,11 @@ export default function AvanaPayroll({
                             marginBottom: 16,
                         }}
                     >
-                        <AIcon name="calendar-clock" size={18} color="#B45309" />
+                        <AIcon
+                            name="calendar-clock"
+                            size={18}
+                            color="#B45309"
+                        />
                         <div style={{ fontSize: 13, color: '#92400E' }}>
                             {isDayPast(pending_attendance_cut_off) ? (
                                 <>

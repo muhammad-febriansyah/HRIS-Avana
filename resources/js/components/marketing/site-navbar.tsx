@@ -223,7 +223,7 @@ export function SiteNavbar({
                                             platformHref={item.href}
                                         />
                                     }
-                                    panelClassName="box-border w-[min(820px,calc(100vw-2rem))]"
+                                    panelClassName="box-border w-[min(1040px,calc(100vw-2rem))]"
                                 />
                             );
                         }
@@ -381,11 +381,26 @@ export function SiteNavbar({
                                                                             null,
                                                                         );
                                                                     }}
-                                                                    className="flex min-h-11 items-center rounded-lg px-2 py-1.5 text-[14px] font-medium text-avana-text hover:bg-white hover:text-avana-blue"
+                                                                    className="group flex min-h-12 items-center gap-2.5 rounded-lg px-2 py-2 text-avana-text transition-colors duration-200 hover:bg-white hover:text-avana-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-avana-blue motion-reduce:transition-none"
                                                                 >
-                                                                    {
-                                                                        module.title
-                                                                    }
+                                                                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-avana-blue">
+                                                                        <module.icon
+                                                                            className="h-4 w-4"
+                                                                            aria-hidden
+                                                                        />
+                                                                    </span>
+                                                                    <span className="min-w-0">
+                                                                        <span className="block truncate text-[13.5px] font-semibold">
+                                                                            {
+                                                                                module.title
+                                                                            }
+                                                                        </span>
+                                                                        <span className="block truncate text-[11px] text-avana-text/55">
+                                                                            {
+                                                                                module.tagline
+                                                                            }
+                                                                        </span>
+                                                                    </span>
                                                                 </Link>
                                                             </li>
                                                         ),

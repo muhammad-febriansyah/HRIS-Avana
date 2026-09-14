@@ -50,6 +50,15 @@ class EnsureAvanaAccess
             abort(403);
         }
 
+        // Report downloads are invoked from their owning module screens (for
+        // example, Absensi -> Export Rekap). The report landing menu may be
+        // hidden independently, so let the report controller enforce the
+        // export permission for this child action instead of blocking it at
+        // the hidden parent menu.
+        if (str_starts_with($request->path(), 'avana/laporan/export/')) {
+            return $next($request);
+        }
+
         $requirement = AvanaNav::requirementFor($request->path(), $user->tenant_id);
 
         // Not a gated menu path — leave it to the controller's own policies.

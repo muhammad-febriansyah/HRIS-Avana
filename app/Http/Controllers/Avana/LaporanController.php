@@ -114,7 +114,7 @@ class LaporanController extends Controller
      */
     public function export(Request $request, string $type): HttpResponse
     {
-        $this->ensureCanViewReports($request);
+        $this->ensureCanExportReports($request, $type);
 
         abort_unless(in_array($type, self::TYPES, true), 404);
 
@@ -603,16 +603,42 @@ class LaporanController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $user->loadMissing('roles.permissions');
+        $user->loadMissing('roles');
 
-        $isPrivileged = $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
+        abort_unless($this->hasPrivilegedReportRole($user) || $user->hasPermissionTo('report.view'), 403);
+    }
 
-        $hasViewPermission = $user->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->pluck('code')
-            ->contains('report.view');
+    /**
+     * Authorize an export using the owning module's export permission.
+     *
+     * Module downloads are exposed from their owning screens, so use the
+     * owning module's export permission where one exists. Payroll and BPJS
+     * downloads are both exposed from Payroll and therefore use payroll.export.
+     */
+    private function ensureCanExportReports(Request $request, string $type): void
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $user->loadMissing('roles');
 
-        abort_unless($isPrivileged || $hasViewPermission, 403);
+        if ($this->hasPrivilegedReportRole($user)) {
+            return;
+        }
+
+        $permission = match ($type) {
+            'absensi' => 'attendance.export',
+            'payroll', 'bpjs' => 'payroll.export',
+            default => 'report.export',
+        };
+
+        abort_unless($user->hasPermissionTo($permission), 403);
+    }
+
+    /**
+     * Whether the user belongs to a role that may always access tenant reports.
+     */
+    private function hasPrivilegedReportRole(User $user): bool
+    {
+        return $user->roles->whereIn('code', self::PRIVILEGED_ROLES)->isNotEmpty();
     }
 }

@@ -5,6 +5,7 @@ use App\Models\Employee;
 use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -145,5 +146,51 @@ it('forbids a plain employee from exporting reports', function (): void {
 
     actingAs($staff)
         ->get('spec-avana/laporan/export/turnover')
+        ->assertForbidden();
+});
+
+it('allows payroll exports with the payroll export permission', function (): void {
+    $role = Role::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'payroll-exporter',
+        'name' => 'Payroll Exporter',
+        'is_system' => false,
+    ]);
+    $role->permissions()->sync([
+        Permission::where('code', 'payroll.export')->value('id'),
+    ]);
+
+    $payrollExporter = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $payrollExporter->roles()->sync([$role->id]);
+
+    actingAs($payrollExporter)
+        ->get('spec-avana/laporan/export/payroll')
+        ->assertOk();
+
+    actingAs($payrollExporter)
+        ->get('spec-avana/laporan')
+        ->assertForbidden();
+});
+
+it('allows attendance exports with the attendance export permission', function (): void {
+    $role = Role::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'attendance-exporter',
+        'name' => 'Attendance Exporter',
+        'is_system' => false,
+    ]);
+    $role->permissions()->sync([
+        Permission::where('code', 'attendance.export')->value('id'),
+    ]);
+
+    $attendanceExporter = User::factory()->create(['tenant_id' => $this->tenant->id]);
+    $attendanceExporter->roles()->sync([$role->id]);
+
+    actingAs($attendanceExporter)
+        ->get('spec-avana/laporan/export/absensi')
+        ->assertOk();
+
+    actingAs($attendanceExporter)
+        ->get('spec-avana/laporan')
         ->assertForbidden();
 });

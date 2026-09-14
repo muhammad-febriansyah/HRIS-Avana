@@ -120,7 +120,7 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
     'core-hr': {
         name: 'Core HR',
         category: 'HR & Karyawan',
-        asset: 'core-hr.png',
+        asset: 'feature-assets/dashboard_hr_avanahr_terpadu.png',
         title: 'Kelola Data Karyawan dari Satu Sumber yang Rapi',
         description:
             'Satukan data personal, struktur organisasi, kontrak, dan dokumen karyawan dalam satu fondasi HR yang selalu siap dipakai.',
@@ -213,7 +213,7 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
     'data-karyawan': {
         name: 'Data Karyawan',
         category: 'HR & Karyawan',
-        asset: 'core-hr.png',
+        asset: 'feature-assets/dashboard_hr_avanahr_terpadu.png',
         title: 'Satu Sistem Terpadu untuk Data Karyawan yang Selalu Siap Dipakai',
         description:
             'Satukan data karyawan, dashboard aktivitas, pembaruan ESS, laporan, surat resmi, dan pencarian berbasis AI dalam satu sumber data HR yang terstruktur.',
@@ -579,7 +579,7 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
     rekrutmen: {
         name: 'Recruitment',
         category: 'HR & Karyawan',
-        asset: 'recruitment.png',
+        asset: 'feature-assets/dasbor_rekrutmen_avanahr_modern.png',
         title: 'Bangun Proses Recruitment dari Lowongan sampai Hiring',
         description:
             'Kelola kebutuhan posisi, pipeline kandidat, interview, dan keputusan hiring dalam satu alur yang mudah dipantau.',
@@ -673,7 +673,7 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
     'manajemen-kinerja': {
         name: 'Performance',
         category: 'HR & Karyawan',
-        asset: 'performance.png',
+        asset: 'feature-assets/dasbor_analitik_kinerja_avanahr.png',
         title: 'Jadikan Performance Review Lebih Terarah',
         description:
             'Hubungkan target, progres, self assessment, review atasan, dan histori performa dalam satu ruang kerja.',
@@ -763,7 +763,7 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
     payroll: {
         name: 'Payroll',
         category: 'Payroll & Bisnis',
-        asset: 'payroll.png',
+        asset: 'feature-assets/ilustrasi_dashboard_payroll_avanahr.png',
         title: 'Hitung Payroll Lebih Terstruktur, Akurat, dan Siap Dibayar',
         description:
             'Hubungkan attendance, lembur, komponen gaji, pajak, BPJS, approval, dan slip gaji dalam satu proses payroll.',
@@ -853,7 +853,7 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
     reimbursement: {
         name: 'Settlement',
         category: 'Payroll & Bisnis',
-        asset: 'settlement.png',
+        asset: 'feature-assets/dasbor_avanahr_untuk_pengelolaan_klaim.png',
         title: 'Kelola Reimbursement dan Perjalanan Dinas dengan Bukti yang Jelas',
         description:
             'Buat pengajuan klaim lebih teratur dari upload bukti, validasi, approval, sampai settlement.',
@@ -2362,6 +2362,33 @@ function ProductVisual({
         ? screenshots
         : screenshots.slice(0, 1);
 
+    if (page.asset.startsWith('feature-assets/')) {
+        return (
+            <div className="relative mx-auto w-full max-w-[680px] overflow-hidden rounded-[28px] border border-[#DCE5F4] bg-[radial-gradient(circle_at_50%_35%,#FFFFFF_0%,#F1F6FF_58%,#E1ECFF_100%)] p-3 shadow-[0_24px_70px_-30px_rgba(16,42,92,0.32)] sm:p-5">
+                <div
+                    aria-hidden
+                    className="absolute -top-14 -right-10 h-44 w-44 rounded-full bg-[#CFE0FF]/50 blur-2xl"
+                />
+                <div
+                    aria-hidden
+                    className="absolute -bottom-16 -left-12 h-48 w-48 rounded-full bg-[#DDF7F0]/60 blur-2xl"
+                />
+                <img
+                    src={`/front/${page.asset}`}
+                    alt={`Ilustrasi fitur ${page.name} AvanaHR`}
+                    width={1672}
+                    height={941}
+                    loading={eager ? 'eager' : 'lazy'}
+                    decoding="async"
+                    className="relative z-10 h-auto w-full object-contain drop-shadow-[0_22px_22px_rgba(16,42,92,0.16)]"
+                />
+                <span className="absolute right-5 bottom-5 left-5 z-20 rounded-2xl border border-white/80 bg-white/85 px-4 py-3 text-center text-xs font-semibold text-[#19366E] shadow-sm backdrop-blur-sm">
+                    Ilustrasi fitur {page.name}
+                </span>
+            </div>
+        );
+    }
+
     if (visibleScreenshots.length === 0) {
         return <FeatureVisual page={page} />;
     }
@@ -2658,9 +2685,9 @@ export default function Feature({
 
                     <section
                         id="masalah"
-                        className="scroll-mt-28 border-b border-[#EDF1F8] py-20 lg:py-28"
+                        className="scroll-mt-28 border-b border-[#EDF1F8] py-20 sm:py-24 lg:py-28"
                     >
-                        <Container className="grid items-start gap-12 lg:grid-cols-[0.72fr_1.28fr] lg:gap-20">
+                        <Container className="grid items-start gap-14 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)] lg:gap-24">
                             <SectionHeading
                                 size="compact"
                                 eyebrow="Masalah yang diselesaikan"
@@ -2668,16 +2695,16 @@ export default function Feature({
                                 description={`Hal-hal kecil yang berulang sering menjadi beban terbesar. ${page.name} membantu merapikan titik-titik yang paling sering membuat tim berhenti dan mengecek ulang.`}
                                 align="left"
                             />
-                            <Reveal className="grid gap-3 sm:grid-cols-2">
+                            <Reveal className="grid gap-5 sm:grid-cols-2">
                                 {page.problems.map((problem, index) => (
                                     <div
                                         key={problem}
-                                        className="flex min-h-[132px] flex-col justify-between rounded-2xl border border-[#E3EAF5] bg-[#F8FAFD] p-5 transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-1 hover:border-[#BFD0F3] hover:shadow-soft"
+                                        className="flex min-h-[164px] flex-col justify-between rounded-2xl border border-[#E3EAF5] bg-[#F8FAFD] p-7 transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-1 hover:border-[#BFD0F3] hover:shadow-soft"
                                     >
                                         <span className="text-xs font-black tracking-[0.16em] text-[#9AA6BB]">
                                             0{index + 1}
                                         </span>
-                                        <p className="mt-8 text-[15px] leading-relaxed font-semibold text-[#19366E]">
+                                        <p className="mt-10 text-[15px] leading-[1.65] font-semibold text-[#19366E]">
                                             {problem}
                                         </p>
                                     </div>
@@ -2688,7 +2715,7 @@ export default function Feature({
 
                     <section
                         id="fitur-utama"
-                        className="scroll-mt-28 bg-[#F8FAFD] py-20 lg:py-28"
+                        className="scroll-mt-28 bg-[#F8FAFD] py-20 sm:py-24 lg:py-28"
                     >
                         <Container>
                             <SectionHeading
@@ -2697,7 +2724,7 @@ export default function Feature({
                                 title="Fitur yang bekerja sebagai satu alur, bukan kumpulan menu."
                                 description="Semua bagian penting tersedia dalam konteks yang sama agar tim dapat bergerak lebih cepat dan lebih sedikit berpindah tempat."
                             />
-                            <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                                 {page.features.map(
                                     (
                                         {
@@ -2711,7 +2738,7 @@ export default function Feature({
                                         <Reveal
                                             key={title}
                                             delay={index * 0.035}
-                                            className="group rounded-2xl border border-[#E3EAF5] bg-white p-6 shadow-[0_8px_30px_-24px_rgba(16,42,92,0.5)] transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-1 hover:border-[#BFD0F3] hover:shadow-avana-card"
+                                            className="group rounded-2xl border border-[#E3EAF5] bg-white p-7 shadow-[0_8px_30px_-24px_rgba(16,42,92,0.5)] transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-1 hover:border-[#BFD0F3] hover:shadow-avana-card"
                                         >
                                             <div className="flex items-start justify-between gap-4">
                                                 <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#EAF0FF] text-[#315FD4] transition-colors group-hover:bg-[#315FD4] group-hover:text-white">
@@ -2731,10 +2758,10 @@ export default function Feature({
                                                     />
                                                 )}
                                             </div>
-                                            <h3 className="mt-6 text-[15px] leading-6 font-bold text-[#0E1A3A]">
+                                            <h3 className="mt-7 text-[15px] leading-7 font-bold text-[#0E1A3A]">
                                                 {title}
                                             </h3>
-                                            <p className="mt-2 text-[13px] leading-6 text-[#667085]">
+                                            <p className="mt-3 text-[13px] leading-7 text-[#667085]">
                                                 {description}
                                             </p>
                                         </Reveal>
@@ -2746,7 +2773,7 @@ export default function Feature({
 
                     <section
                         id="cara-kerja"
-                        className="scroll-mt-28 border-y border-[#E8EEF8] bg-[#102A5C] py-20 text-white lg:py-28"
+                        className="scroll-mt-28 border-y border-[#E8EEF8] bg-[#102A5C] py-20 text-white sm:py-24 lg:py-28"
                     >
                         <Container>
                             <SectionHeading
@@ -2757,7 +2784,7 @@ export default function Feature({
                                 tone="dark"
                             />
                             <div
-                                className={`relative mt-14 grid gap-3 ${workflowGridColumns}`}
+                                className={`relative mt-14 grid gap-5 ${workflowGridColumns}`}
                             >
                                 <div
                                     aria-hidden
@@ -2767,7 +2794,7 @@ export default function Feature({
                                     <Reveal
                                         key={step}
                                         delay={index * 0.05}
-                                        className="relative flex min-h-[142px] flex-col rounded-2xl border border-white/15 bg-white/8 p-4 backdrop-blur-sm sm:p-5"
+                                        className="relative flex min-h-[164px] flex-col rounded-2xl border border-white/15 bg-white/8 p-6 backdrop-blur-sm"
                                     >
                                         <div className="flex items-center justify-between">
                                             <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-sm font-black text-[#315FD4]">
@@ -2780,11 +2807,11 @@ export default function Feature({
                                                 />
                                             )}
                                         </div>
-                                        <p className="mt-6 text-[10px] font-bold tracking-[0.16em] text-blue-200/65 uppercase">
+                                        <p className="mt-7 text-[10px] font-bold tracking-[0.16em] text-blue-200/65 uppercase">
                                             Langkah{' '}
                                             {String(index + 1).padStart(2, '0')}
                                         </p>
-                                        <p className="mt-2 text-[13px] leading-6 font-semibold text-blue-50">
+                                        <p className="mt-3 text-[13px] leading-7 font-semibold text-blue-50">
                                             {step}
                                         </p>
                                     </Reveal>
@@ -2795,9 +2822,9 @@ export default function Feature({
 
                     <section
                         id="tampilan-produk"
-                        className="scroll-mt-28 py-20 lg:py-28"
+                        className="scroll-mt-28 py-20 sm:py-24 lg:py-28"
                     >
-                        <Container className="grid items-center gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
+                        <Container className="grid items-center gap-14 lg:grid-cols-[0.92fr_1.08fr] lg:gap-24">
                             <Reveal>
                                 <ProductVisual
                                     featureSlug={featureSlug}
@@ -2808,17 +2835,17 @@ export default function Feature({
                                 <span className="inline-flex items-center gap-2 rounded-full border border-[#E2E9F6] bg-[#F4F7FD] px-3.5 py-1 text-[12px] font-semibold tracking-[0.08em] text-[#2F54C9] uppercase">
                                     Tampilan produk
                                 </span>
-                                <h2 className="mt-5 text-[30px] leading-[1.2] font-bold tracking-[-0.03em] text-[#0E1A3A] sm:text-[34px]">
+                                <h2 className="mt-6 text-[30px] leading-[1.25] font-bold tracking-[-0.03em] text-[#0E1A3A] sm:text-[34px] sm:leading-[1.22]">
                                     Satu tampilan untuk memahami pekerjaan yang
                                     sedang berjalan.
                                 </h2>
-                                <p className="mt-5 text-[15px] leading-7 text-[#5B6478]">
+                                <p className="mt-6 text-[15px] leading-[1.75] text-[#5B6478]">
                                     Asset visual {page.name} menempatkan konteks
                                     utama di depan: siapa yang terlibat, proses
                                     yang berjalan, dan hasil yang perlu
                                     ditindaklanjuti.
                                 </p>
-                                <ul className="mt-7 grid gap-3 sm:grid-cols-2">
+                                <ul className="mt-8 grid gap-4 sm:grid-cols-2">
                                     {[
                                         'Informasi lebih mudah dipindai',
                                         'Status proses terlihat jelas',
@@ -2843,9 +2870,9 @@ export default function Feature({
 
                     <section
                         id="manfaat"
-                        className="scroll-mt-28 border-y border-[#EDF1F8] bg-[#F8FAFD] py-20 lg:py-28"
+                        className="scroll-mt-28 border-y border-[#EDF1F8] bg-[#F8FAFD] py-20 sm:py-24 lg:py-28"
                     >
-                        <Container className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
+                        <Container className="grid gap-14 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)] lg:gap-24">
                             <SectionHeading
                                 size="compact"
                                 eyebrow="Manfaat untuk tim"
@@ -2853,17 +2880,17 @@ export default function Feature({
                                 description={`${page.name} membantu HR mengurangi pekerjaan berulang sambil menjaga data tetap siap digunakan oleh tim lain.`}
                                 align="left"
                             />
-                            <Reveal className="grid gap-3 sm:grid-cols-2">
+                            <Reveal className="grid gap-5 sm:grid-cols-2">
                                 {page.benefits.map((benefit) => (
                                     <div
                                         key={benefit}
-                                        className="flex items-start gap-3 rounded-2xl border border-[#E3EAF5] bg-white p-5"
+                                        className="flex items-start gap-4 rounded-2xl border border-[#E3EAF5] bg-white p-7"
                                     >
                                         <CircleCheck
                                             className="mt-0.5 h-5 w-5 shrink-0 text-[#27B89B]"
                                             aria-hidden
                                         />
-                                        <p className="text-sm leading-6 font-semibold text-[#19366E]">
+                                        <p className="text-sm leading-7 font-semibold text-[#19366E]">
                                             {benefit}
                                         </p>
                                     </div>
@@ -2874,7 +2901,7 @@ export default function Feature({
 
                     <section
                         id="integrasi"
-                        className="scroll-mt-28 py-20 lg:py-28"
+                        className="scroll-mt-28 py-20 sm:py-24 lg:py-28"
                     >
                         <Container>
                             <SectionHeading
@@ -2883,7 +2910,7 @@ export default function Feature({
                                 title="Data tidak berhenti di satu fitur."
                                 description={`Bawa hasil dari ${page.name} ke proses lain yang membutuhkan konteksnya.`}
                             />
-                            <Reveal className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            <Reveal className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
                                 {page.related.map((slug) => {
                                     const related = getFeaturePage(slug);
 
@@ -2892,7 +2919,7 @@ export default function Feature({
                                             key={slug}
                                             href={featureUrl(slug)}
                                             prefetch
-                                            className="group flex items-center gap-4 rounded-2xl border border-[#E3EAF5] bg-white p-4 shadow-[0_8px_30px_-24px_rgba(16,42,92,0.5)] transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-1 hover:border-[#BFD0F3] hover:shadow-avana-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315FD4]"
+                                            className="group flex items-center gap-4 rounded-2xl border border-[#E3EAF5] bg-white p-5 shadow-[0_8px_30px_-24px_rgba(16,42,92,0.5)] transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-1 hover:border-[#BFD0F3] hover:shadow-avana-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315FD4]"
                                         >
                                             <img
                                                 src={`/front/${related.asset}`}
@@ -2921,9 +2948,9 @@ export default function Feature({
 
                     <section
                         id="cocok-untuk"
-                        className="scroll-mt-28 border-y border-[#EDF1F8] bg-[#F8FAFD] py-20 lg:py-28"
+                        className="scroll-mt-28 border-y border-[#EDF1F8] bg-[#F8FAFD] py-20 sm:py-24 lg:py-28"
                     >
-                        <Container className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
+                        <Container className="grid gap-14 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)] lg:gap-24">
                             <SectionHeading
                                 size="compact"
                                 eyebrow="Cocok untuk siapa"
@@ -2931,16 +2958,16 @@ export default function Feature({
                                 description="Mulai dari tim kecil sampai organisasi multi cabang, pilih alur yang paling dekat dengan kebutuhan Anda."
                                 align="left"
                             />
-                            <Reveal className="grid gap-3 sm:grid-cols-2">
+                            <Reveal className="grid gap-5 sm:grid-cols-2">
                                 {page.audience.map((item) => (
                                     <div
                                         key={item}
-                                        className="rounded-2xl border border-[#E3EAF5] bg-white p-5"
+                                        className="rounded-2xl border border-[#E3EAF5] bg-white p-7"
                                     >
                                         <p className="text-sm font-bold text-[#19366E]">
                                             {item}
                                         </p>
-                                        <p className="mt-2 text-xs leading-5 text-[#667085]">
+                                        <p className="mt-3 text-xs leading-6 text-[#667085]">
                                             {page.name} dapat disesuaikan dengan
                                             struktur, role, dan ritme kerja tim
                                             Anda.

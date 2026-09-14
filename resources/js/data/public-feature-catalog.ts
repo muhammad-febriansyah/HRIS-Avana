@@ -228,7 +228,7 @@ export const PUBLIC_FEATURE_CATALOG: Record<string, PublicFeatureCatalogEntry> =
             slug: 'pelatihan',
             name: 'Pelatihan',
             category: 'Learning & Development',
-            asset: 'performance.png',
+            asset: 'feature-assets/ilustrasi_dashboard_pelatihan_avanahr.png',
             title: 'Bangun learning path yang selaras dengan kebutuhan bisnis',
             description:
                 'Rencanakan pembelajaran berdasarkan role, minat, dan hasil kinerja agar upskilling tidak berhenti sebagai daftar kelas.',
@@ -296,7 +296,7 @@ export const PUBLIC_FEATURE_CATALOG: Record<string, PublicFeatureCatalogEntry> =
             slug: 'time-management',
             name: 'Time Management',
             category: 'Attendance & Lapangan',
-            asset: 'attendance.png',
+            asset: 'feature-assets/dasbor_manajemen_waktu_avanahr.png',
             title: 'Kelola waktu kerja dengan aturan yang bisa diikuti semua orang',
             description:
                 'Satukan penjadwalan, kehadiran, timesheet, dan koreksi waktu untuk mendukung operasional yang fleksibel sekaligus patuh.',
@@ -358,7 +358,7 @@ export const PUBLIC_FEATURE_CATALOG: Record<string, PublicFeatureCatalogEntry> =
             slug: 'manajemen-talenta',
             name: 'Manajemen Talenta',
             category: 'Talent Management',
-            asset: 'performance.png',
+            asset: 'feature-assets/dasbor_manajemen_talenta_avanahr.png',
             title: 'Hubungkan tujuan, kinerja, dan pertumbuhan talenta',
             description:
                 'Bantu manajer dan karyawan melihat hubungan antara OKR, feedback, pengembangan, karier, dan kesiapan suksesi.',
@@ -456,7 +456,7 @@ export const PUBLIC_FEATURE_CATALOG: Record<string, PublicFeatureCatalogEntry> =
             slug: 'compensation-benefits',
             name: 'Compensation & Benefits',
             category: 'Compensation & Benefit',
-            asset: 'settlement.png',
+            asset: 'feature-assets/dasbor_kompensasi_avanahr_modern.png',
             title: 'Rancang kompensasi dan tunjangan yang fleksibel',
             description:
                 'Atur aturan kelayakan, anggaran, tanggungan, dan penerima manfaat sambil menjaga data tetap sinkron dengan payroll.',
@@ -501,7 +501,7 @@ export const PUBLIC_FEATURE_CATALOG: Record<string, PublicFeatureCatalogEntry> =
             slug: 'loans-management',
             name: 'Loans Management',
             category: 'Compensation & Benefit',
-            asset: 'payroll.png',
+            asset: 'feature-assets/dasbor_manajemen_pinjaman_avanahr.png',
             title: 'Kelola pinjaman karyawan sampai pelunasan dengan rapi',
             description:
                 'Dukung berbagai skema pinjaman dengan kriteria, bunga, pembayaran, dan integrasi payroll yang dapat disesuaikan.',
@@ -581,7 +581,7 @@ export const PUBLIC_FEATURE_CATALOG: Record<string, PublicFeatureCatalogEntry> =
             slug: 'kpi',
             name: 'KPI & OKR',
             category: 'Performance & Talent',
-            asset: 'performance.png',
+            asset: 'feature-assets/dasbor_analitik_kinerja_avanahr.png',
             title: 'Turunkan tujuan perusahaan menjadi hasil yang terukur',
             description:
                 'Susun objectives, key results, milestone, dan indikator yang membantu tim bergerak dari prioritas besar ke tindakan nyata.',
