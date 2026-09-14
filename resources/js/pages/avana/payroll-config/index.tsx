@@ -1,6 +1,7 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import PayrollConfigController from '@/actions/App/Http/Controllers/Avana/PayrollConfigController';
 import { AIcon, C, card } from '@/lib/avana';
 import BpjsTab from './bpjs-tab';
 import Pph21Tab from './pph21-tab';
@@ -35,13 +36,14 @@ export default function PayrollConfig({
     // current values with its own field replaced.
     const saveSettings = (patch: Partial<PayrollConfigProps['settings']>) => {
         router.put(
-            '/avana/payroll/konfigurasi/settings',
+            PayrollConfigController.updateSettings().url,
             {
                 enforce_payroll_segregation:
                     settings.enforce_payroll_segregation,
                 require_salary_approval: settings.require_salary_approval,
                 tax_includes_employer_bpjs:
                     settings.tax_includes_employer_bpjs,
+                bpjs_jp_enabled: settings.bpjs_jp_enabled,
                 ...patch,
             },
             { preserveScroll: true },
@@ -56,6 +58,9 @@ export default function PayrollConfig({
 
     const toggleEmployerPremiumTax = (value: boolean) =>
         saveSettings({ tax_includes_employer_bpjs: value });
+
+    const toggleBpjsJp = (value: boolean) =>
+        saveSettings({ bpjs_jp_enabled: value });
 
     useEffect(() => {
         if (flash?.success) {
@@ -316,6 +321,73 @@ export default function PayrollConfig({
                         {settings.tax_includes_employer_bpjs
                             ? 'Aktif'
                             : 'Nonaktif'}
+                    </label>
+                </div>
+
+                {/* Company-specific Jaminan Pensiun switch */}
+                <div
+                    style={{
+                        ...card,
+                        padding: '16px 20px',
+                        marginBottom: 20,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 16,
+                        flexWrap: 'wrap',
+                    }}
+                >
+                    <div
+                        style={{
+                            display: 'flex',
+                            gap: 12,
+                            alignItems: 'flex-start',
+                        }}
+                    >
+                        <AIcon name="shield-plus" size={20} color={C.primary} />
+                        <div>
+                            <div
+                                style={{
+                                    fontSize: 14.5,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                }}
+                            >
+                                BPJS JP untuk Perusahaan Ini
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: C.muted,
+                                    marginTop: 2,
+                                    maxWidth: 560,
+                                }}
+                            >
+                                Jika nonaktif, iuran Jaminan Pensiun (JP) tidak
+                                dihitung dalam payroll perusahaan ini. Master
+                                JP tetap aktif untuk perusahaan lain.
+                            </div>
+                        </div>
+                    </div>
+                    <label
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            cursor: 'pointer',
+                            fontSize: 13.5,
+                            fontWeight: 600,
+                            color: settings.bpjs_jp_enabled
+                                ? C.green
+                                : C.muted,
+                        }}
+                    >
+                        <input
+                            type="checkbox"
+                            checked={settings.bpjs_jp_enabled}
+                            onChange={(e) => toggleBpjsJp(e.target.checked)}
+                        />
+                        {settings.bpjs_jp_enabled ? 'Aktif' : 'Nonaktif'}
                     </label>
                 </div>
 

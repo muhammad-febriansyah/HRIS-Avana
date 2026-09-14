@@ -363,6 +363,27 @@ it('deducts internal BPJS computed from the registered wage', function (): void 
     expect($deductions->firstWhere('name', 'BPJS (Karyawan)'))->toBeNull();
 });
 
+it('omits JP contributions when the tenant disables JP', function (): void {
+    configureComponent($this->employee, 'BASIC', 'fixed', 5_000_000);
+
+    EmployeeBpjsProfile::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'registered_wage' => 5_000_000,
+        'jht_enabled' => true, 'jkk_enabled' => true, 'jkm_enabled' => true,
+        'jp_enabled' => true, 'kesehatan_enabled' => true,
+        'effective_start_date' => '2026-01-01',
+    ]);
+    $this->tenant->update(['bpjs_jp_enabled' => false]);
+
+    $item = runAndItem($this);
+    $deductions = collect($item->calculation_snapshot['deductions']);
+
+    expect((float) $item->bpjs_employee_total)->toBe(150_000.0)
+        ->and($deductions->firstWhere('name', 'JP (Karyawan)'))->toBeNull()
+        ->and($item->calculation_snapshot['bpjs']['programs']['jp'] ?? null)->toBeNull();
+});
+
 it('stops the BPJS premium at each programme wage ceiling', function (): void {
     configureComponent($this->employee, 'BASIC', 'fixed', 14_500_000);
 

@@ -134,6 +134,7 @@ class PayrollConfigController extends Controller
                 'enforce_payroll_segregation' => (bool) $request->user()->tenant?->enforce_payroll_segregation,
                 'require_salary_approval' => (bool) $request->user()->tenant?->require_salary_approval,
                 'tax_includes_employer_bpjs' => (bool) ($request->user()->tenant?->tax_includes_employer_bpjs ?? true),
+                'bpjs_jp_enabled' => (bool) ($request->user()->tenant?->bpjs_jp_enabled ?? true),
             ],
             'features' => FeatureGate::map($request->user(), ['bpjs', 'pph21']),
         ]);
@@ -230,7 +231,7 @@ class PayrollConfigController extends Controller
     }
 
     /**
-     * Toggle tenant-level payroll controls (currently segregation of duties).
+     * Toggle tenant-level payroll controls.
      */
     public function updateSettings(Request $request): RedirectResponse
     {
@@ -242,6 +243,7 @@ class PayrollConfigController extends Controller
             'enforce_payroll_segregation' => ['required', 'boolean'],
             'require_salary_approval' => ['required', 'boolean'],
             'tax_includes_employer_bpjs' => ['required', 'boolean'],
+            'bpjs_jp_enabled' => ['required', 'boolean'],
         ]);
 
         $tenant = $user->tenant;
@@ -251,6 +253,7 @@ class PayrollConfigController extends Controller
             'enforce_payroll_segregation' => $validated['enforce_payroll_segregation'],
             'require_salary_approval' => $validated['require_salary_approval'],
             'tax_includes_employer_bpjs' => $validated['tax_includes_employer_bpjs'],
+            'bpjs_jp_enabled' => $validated['bpjs_jp_enabled'],
         ]);
 
         return back()->with('success', 'Pengaturan payroll disimpan');

@@ -37,6 +37,7 @@ beforeEach(function (): void {
         Route::post('spec-payroll-config/pkp', [PayrollConfigController::class, 'storePkpRate']);
         Route::delete('spec-payroll-config/pkp/{rate}', [PayrollConfigController::class, 'destroyPkpRate']);
         Route::post('spec-payroll-config/tax-profile', [PayrollConfigController::class, 'upsertTaxProfile']);
+        Route::put('spec-payroll-config/settings', [PayrollConfigController::class, 'updateSettings']);
     });
 });
 
@@ -120,6 +121,23 @@ it('renders the payroll config screen with the expected props', function (): voi
             ->has('pkpRates')
             ->has('profileStats.bpjs_profiles')
             ->has('profileStats.tax_profiles'));
+});
+
+it('updates the tenant JP setting without changing the global JP program', function (): void {
+    $jp = BpjsProgram::where('code', 'JP')->firstOrFail();
+
+    actingAs($this->admin)
+        ->put('spec-payroll-config/settings', [
+            'enforce_payroll_segregation' => false,
+            'require_salary_approval' => false,
+            'tax_includes_employer_bpjs' => true,
+            'bpjs_jp_enabled' => false,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    expect((bool) $this->tenant->fresh()->bpjs_jp_enabled)->toBeFalse()
+        ->and($jp->fresh()->is_active)->toBeTrue();
 });
 
 it('creates a BPJS program together with its primary rate', function (): void {

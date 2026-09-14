@@ -3646,6 +3646,7 @@ class PayrollController extends Controller
         $taxableCompany = 0.0;
         $deductibleEmployee = 0.0;
         $lines = [];
+        $jpEnabled = (bool) (Tenant::find($tenantId)?->bpjs_jp_enabled ?? true);
 
         $programs = BpjsProgram::where('is_active', true)
             ->with(['rates' => fn ($query) => $query
@@ -3659,6 +3660,10 @@ class PayrollController extends Controller
             $code = strtolower((string) $program->code);
 
             if ($profile !== null && isset($enabledMap[$code]) && ! $profile->{$enabledMap[$code]}) {
+                continue;
+            }
+
+            if ($code === 'jp' && ! $jpEnabled) {
                 continue;
             }
 

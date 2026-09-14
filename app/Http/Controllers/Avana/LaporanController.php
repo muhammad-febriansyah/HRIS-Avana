@@ -12,6 +12,7 @@ use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\TaxProfile;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Support\TenantTime;
@@ -388,11 +389,13 @@ class LaporanController extends Controller
             ->with(['employee:id,full_name,employee_number'])
             ->orderBy('id');
 
+        $jpEnabled = (bool) (Tenant::find($tenantId)?->bpjs_jp_enabled ?? true);
+
         $mapper = fn (EmployeeBpjsProfile $profile): array => [
             $profile->employee?->full_name,
             $profile->employee?->employee_number,
             (int) $profile->registered_wage,
-            $this->bpjsPrograms($profile),
+            $this->bpjsPrograms($profile, $jpEnabled),
         ];
 
         return [$header, $query, $mapper];
@@ -494,7 +497,7 @@ class LaporanController extends Controller
     /**
      * Build a comma-separated list of the BPJS programs a profile enrolls in.
      */
-    private function bpjsPrograms(EmployeeBpjsProfile $profile): string
+    private function bpjsPrograms(EmployeeBpjsProfile $profile, bool $jpEnabled): string
     {
         $programs = [];
 
@@ -510,7 +513,7 @@ class LaporanController extends Controller
             $programs[] = 'JKM';
         }
 
-        if ($profile->jp_enabled) {
+        if ($profile->jp_enabled && $jpEnabled) {
             $programs[] = 'JP';
         }
 
