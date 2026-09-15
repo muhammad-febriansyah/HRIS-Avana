@@ -2,6 +2,7 @@ import { Link } from '@inertiajs/react';
 import { ArrowRight, ArrowUpRight, ChevronDown, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { PUBLIC_PRODUCT_NAVIGATION } from '@/data/public-product-navigation';
 import { cn } from '@/lib/utils';
 import { show as featureShow } from '@/routes/features';
 import { MODULES } from './modules-section';
@@ -12,77 +13,8 @@ export type ProductMenuItem = Pick<Module, 'icon' | 'tagline'> & {
     href: string;
 };
 
-type ProductMenuDefinition = {
-    title: string;
-    moduleTitle: string;
-    slug: string;
-};
-
-/**
- * Parent modules shown in the "Fitur" mega menu. Submodules and feature
- * details stay on their parent pages, matching the product navigation pattern
- * from the reference site.
- */
-const PRODUCT_MENU_DEFINITIONS: ProductMenuDefinition[] = [
-    {
-        title: 'HR Core',
-        moduleTitle: 'Core HR',
-        slug: 'core-hr',
-    },
-    {
-        title: 'Payroll',
-        moduleTitle: 'Payroll',
-        slug: 'payroll',
-    },
-    {
-        title: 'Pelatihan',
-        moduleTitle: 'Pelatihan',
-        slug: 'pelatihan',
-    },
-    {
-        title: 'Recruitment',
-        moduleTitle: 'Recruitment',
-        slug: 'rekrutmen',
-    },
-    {
-        title: 'Time Management',
-        moduleTitle: 'Time Management',
-        slug: 'time-management',
-    },
-    {
-        title: 'Manajemen Talenta',
-        moduleTitle: 'Manajemen Talenta',
-        slug: 'manajemen-talenta',
-    },
-    {
-        title: 'Compensation & Benefits',
-        moduleTitle: 'Compensation & Benefits',
-        slug: 'compensation-benefits',
-    },
-    {
-        title: 'Expenses & Reimbursement',
-        moduleTitle: 'Settlement',
-        slug: 'reimbursement',
-    },
-    {
-        title: 'Loans Management',
-        moduleTitle: 'Loans Management',
-        slug: 'loans-management',
-    },
-    {
-        title: 'KPI',
-        moduleTitle: 'KPI',
-        slug: 'kpi',
-    },
-    {
-        title: 'AI & Analytics',
-        moduleTitle: 'AI & Analytics',
-        slug: 'ai-analytics',
-    },
-];
-
 export const PRODUCT_MENU_ITEMS: ProductMenuItem[] =
-    PRODUCT_MENU_DEFINITIONS.map(({ title, moduleTitle, slug }) => {
+    PUBLIC_PRODUCT_NAVIGATION.map(({ label, moduleTitle, slug }) => {
         const module = MODULES.find(
             (candidate) => candidate.title === moduleTitle,
         );
@@ -94,7 +26,7 @@ export const PRODUCT_MENU_ITEMS: ProductMenuItem[] =
         }
 
         return {
-            title,
+            title: label,
             tagline: module.tagline,
             icon: module.icon,
             href: featureShow.url(slug),

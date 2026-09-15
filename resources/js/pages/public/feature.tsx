@@ -778,27 +778,27 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
         features: [
             F(
                 'Manajemen Komponen',
-                'Gunakan komponen tak terbatas untuk menghitung tunjangan, pengurangan, komponen netral, pinjaman, asuransi, lembur, biaya, dan skema payroll yang kompleks.',
+                'Gunakan komponen tak terbatas untuk menghitung tunjangan, potongan, dan komponen netral. Atur pinjaman, asuransi, berbagai skema lembur dan biaya, pajak lintas yurisdiksi, serta pembayaran multi-mata uang untuk mendukung perhitungan payroll yang kompleks.',
                 WalletCards,
             ),
             F(
                 'Proses Penggajian',
-                'Sederhanakan pengolahan penggajian dengan komponen gaji fleksibel dan perhitungan otomatis.',
+                'Sederhanakan pengolahan penggajian melalui komponen gaji yang fleksibel dan perhitungan otomatis untuk mendukung perencanaan kompensasi yang kompleks.',
                 ReceiptText,
             ),
             F(
                 'Info Payroll & Slip Gaji',
-                'Berikan portal penggajian mandiri 24/7 agar karyawan dapat melihat informasi dan slip gajinya.',
+                'Sediakan portal penggajian mandiri yang dapat diakses 24/7 agar karyawan dapat melihat informasi payroll, rincian komponen upah, dan slip gajinya.',
                 FileText,
             ),
             F(
                 'Analytics & Reporting',
-                'Gunakan statistik singkat, dashboard, laporan standar, feed informasi, dan pengingat berbasis AI untuk keputusan payroll.',
+                'Gunakan statistik singkat di halaman, visualisasi dashboard, laporan standar, feed informasi, dan pengingat berbasis AI untuk mendukung keputusan payroll yang tepat waktu dan informatif.',
                 BarChart3,
             ),
             F(
                 'Panduan Payroll',
-                'Ikuti siklus payroll dari pemilihan periode, pembaruan data, absensi, pinjaman, pengeluaran, hingga proses selesai.',
+                'Ikuti panduan dalam satu tampilan terpusat untuk menjalankan siklus payroll, mulai dari memilih periode pembayaran dan memperbarui data hingga memproses absensi, pinjaman, dan pengeluaran. Sistem mencantumkan setiap langkah wajib dan melacak penyelesaiannya.',
                 ListChecks,
             ),
         ],
@@ -2464,6 +2464,11 @@ export default function Feature({
             : page.steps.length === 4
               ? 'md:grid-cols-4'
               : 'md:grid-cols-3';
+    const relatedPages = page.related.flatMap((slug) => {
+        const relatedPage = getFeaturePage(slug);
+
+        return relatedPage ? [{ slug, page: relatedPage }] : [];
+    });
     const structuredData = {
         '@context': 'https://schema.org',
         '@graph': [
@@ -2901,47 +2906,118 @@ export default function Feature({
 
                     <section
                         id="integrasi"
-                        className="scroll-mt-28 py-20 sm:py-24 lg:py-28"
+                        aria-labelledby="integrasi-heading"
+                        className="relative scroll-mt-28 overflow-hidden border-y border-[#DEE7F5] bg-[#F4F7FD] py-16 sm:py-20 lg:py-24"
                     >
-                        <Container>
-                            <SectionHeading
-                                size="compact"
-                                eyebrow="Terhubung dengan modul lain"
-                                title="Data tidak berhenti di satu fitur."
-                                description={`Bawa hasil dari ${page.name} ke proses lain yang membutuhkan konteksnya.`}
-                            />
-                            <Reveal className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                                {page.related.map((slug) => {
-                                    const related = getFeaturePage(slug);
+                        <div
+                            aria-hidden
+                            className="pointer-events-none absolute -top-28 -right-24 h-80 w-80 rounded-full bg-[#DCE8FF]/80 blur-3xl"
+                        />
+                        <div
+                            aria-hidden
+                            className="pointer-events-none absolute -bottom-32 left-[18%] h-72 w-72 rounded-full bg-[#DDF5EF]/70 blur-3xl"
+                        />
+                        <Container className="relative grid items-center gap-10 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] lg:gap-16">
+                            <Reveal className="max-w-xl">
+                                <span className="inline-flex items-center rounded-full border border-[#D5E1F5] bg-white/80 px-3.5 py-1 text-[12px] font-semibold tracking-[0.08em] text-[#2F54C9] uppercase shadow-sm">
+                                    Terhubung dengan modul lain
+                                </span>
+                                <h2
+                                    id="integrasi-heading"
+                                    className="mt-5 text-[30px] leading-[1.2] font-bold tracking-[-0.03em] text-balance text-[#0E1A3A] sm:text-[36px] lg:text-[42px]"
+                                >
+                                    Satu data, lanjut ke banyak proses.
+                                </h2>
+                                <p className="mt-5 max-w-lg text-[15px] leading-7 text-pretty text-[#5B6478] sm:text-base">
+                                    Hasil dari {page.name} langsung siap dipakai
+                                    oleh modul lain tanpa input ulang atau
+                                    kehilangan konteks.
+                                </p>
 
-                                    return related ? (
-                                        <Link
-                                            key={slug}
-                                            href={featureUrl(slug)}
-                                            prefetch
-                                            className="group flex items-center gap-4 rounded-2xl border border-[#E3EAF5] bg-white p-5 shadow-[0_8px_30px_-24px_rgba(16,42,92,0.5)] transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-1 hover:border-[#BFD0F3] hover:shadow-avana-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315FD4]"
-                                        >
-                                            <img
-                                                src={`/front/${related.asset}`}
-                                                alt=""
-                                                loading="lazy"
-                                                className="h-14 w-14 object-contain"
-                                            />
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block text-sm font-bold text-[#19366E]">
-                                                    {related.name}
+                                <div className="relative mt-8 flex max-w-sm items-center gap-4 rounded-2xl border border-[#254A9B] bg-[#102A5C] p-4 text-white shadow-[0_18px_45px_-24px_rgba(16,42,92,0.8)]">
+                                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 ring-1 ring-white/15">
+                                        <Network
+                                            className="h-5 w-5 text-[#91E0CF]"
+                                            aria-hidden
+                                        />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-[10px] font-bold tracking-[0.14em] text-blue-200/70 uppercase">
+                                            Modul sumber
+                                        </span>
+                                        <span className="mt-1 block truncate text-sm font-bold">
+                                            {page.name}
+                                        </span>
+                                    </span>
+                                    <ArrowRight
+                                        className="h-5 w-5 shrink-0 text-[#91E0CF]"
+                                        aria-hidden
+                                    />
+                                    <span
+                                        aria-hidden
+                                        className="absolute top-1/2 left-full ml-3 hidden w-16 border-t border-dashed border-[#91A8D5] lg:block"
+                                    />
+                                </div>
+                            </Reveal>
+
+                            <Reveal className="rounded-[28px] border border-white/90 bg-white/85 p-3 shadow-[0_28px_80px_-40px_rgba(16,42,92,0.45)] ring-1 ring-[#DCE5F4]/80 backdrop-blur-sm sm:p-5">
+                                <div className="flex items-center justify-between gap-4 px-2 py-2 sm:px-3">
+                                    <span className="flex items-center gap-2 text-[11px] font-bold tracking-[0.12em] text-[#667085] uppercase">
+                                        <span className="relative flex h-2.5 w-2.5">
+                                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#27B89B]/40 motion-reduce:animate-none" />
+                                            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#27B89B]" />
+                                        </span>
+                                        Modul tujuan
+                                    </span>
+                                    <span className="rounded-full bg-[#EEF3FF] px-3 py-1 text-[11px] font-bold text-[#315FD4]">
+                                        {relatedPages.length} terhubung
+                                    </span>
+                                </div>
+
+                                <div className="mt-2 grid gap-3">
+                                    {relatedPages.map(
+                                        ({ slug, page: related }) => (
+                                            <Link
+                                                key={slug}
+                                                href={featureUrl(slug)}
+                                                prefetch
+                                                aria-label={`Buka halaman fitur ${related.name}`}
+                                                className="group relative flex min-h-24 items-center gap-4 overflow-hidden rounded-[20px] border border-[#E3EAF5] bg-[#F8FAFD] p-4 transition-[border-color,background-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-[#B7C9EE] hover:bg-white hover:shadow-[0_16px_34px_-24px_rgba(16,42,92,0.55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#315FD4]"
+                                            >
+                                                <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-[#E5ECF8] bg-white shadow-[0_8px_24px_-18px_rgba(16,42,92,0.55)]">
+                                                    <img
+                                                        src={`/front/${related.asset}`}
+                                                        alt=""
+                                                        loading="lazy"
+                                                        className="h-12 w-12 object-contain transition-transform duration-300 group-hover:scale-105"
+                                                    />
                                                 </span>
-                                                <span className="mt-1 block text-xs text-[#667085]">
-                                                    Buka halaman fitur
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block text-[10px] font-bold tracking-[0.1em] text-[#72809A] uppercase">
+                                                        {related.category}
+                                                    </span>
+                                                    <span className="mt-1 block text-[15px] font-bold text-[#19366E]">
+                                                        {related.name}
+                                                    </span>
+                                                    <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#315FD4] sm:hidden">
+                                                        Lihat modul
+                                                        <ArrowRight
+                                                            className="h-3.5 w-3.5"
+                                                            aria-hidden
+                                                        />
+                                                    </span>
                                                 </span>
-                                            </span>
-                                            <ChevronRight
-                                                className="h-4 w-4 shrink-0 text-[#9AA6BB] transition-transform group-hover:translate-x-1 group-hover:text-[#315FD4]"
-                                                aria-hidden
-                                            />
-                                        </Link>
-                                    ) : null;
-                                })}
+                                                <span className="hidden shrink-0 items-center gap-2 rounded-full border border-[#DCE5F4] bg-white px-3.5 py-2 text-xs font-bold text-[#315FD4] transition-[border-color,background-color] group-hover:border-[#BFD0F3] group-hover:bg-[#F4F7FD] sm:inline-flex">
+                                                    Lihat modul
+                                                    <ArrowRight
+                                                        className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                                                        aria-hidden
+                                                    />
+                                                </span>
+                                            </Link>
+                                        ),
+                                    )}
+                                </div>
                             </Reveal>
                         </Container>
                     </section>

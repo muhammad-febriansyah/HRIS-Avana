@@ -240,27 +240,27 @@ export const PUBLIC_FEATURE_CATALOG: Record<string, PublicFeatureCatalogEntry> =
             ],
             items: [
                 {
-                    title: 'Flexible & scalable learning path',
+                    title: 'Flexible & scalable',
                     description:
-                        'Susun jalur belajar role-based atau interest-based yang dapat berkembang lintas divisi dan level jabatan.',
+                        'Dukung pembelajaran role-based maupun interest-based untuk upskilling, reskilling, dan jalur pengembangan personal yang selaras dengan target bisnis serta pertumbuhan karyawan. Susun learning path yang dapat dikustomisasi dan skalakan program lintas divisi maupun level jabatan.',
                     icon: 'GitBranch',
                 },
                 {
                     title: 'Pelatihan berbasis kinerja',
                     description:
-                        'Hubungkan rekomendasi training dengan performance review, succession planning, dan IDP.',
+                        'Rekomendasikan program training secara otomatis berdasarkan performance review, succession planning, dan IDP. Petakan kebutuhan berdasarkan kompetensi, gunakan hasil evaluasi kinerja serta perencanaan karier, dan hemat waktu analisis kebutuhan pelatihan.',
                     icon: 'Target',
                 },
                 {
                     title: 'Pengembangan selaras bisnis',
                     description:
-                        'Bandingkan biaya dan efektivitas program untuk membantu organisasi membangun keterampilan yang dibutuhkan.',
+                        'Bangun tenaga kerja dinamis yang mampu mengikuti perubahan bisnis melalui pengembangan keterampilan yang lebih cepat, kesempatan belajar di luar bidang keahlian, perpaduan pelatihan langsung dan daring, serta perbandingan biaya program dengan efektivitas dan dampaknya.',
                     icon: 'TrendingUp',
                 },
                 {
                     title: 'Engaging virtual learning',
                     description:
-                        'Sajikan konten dalam beragam format dengan kuis, tes, survei, tracking, dan feedback.',
+                        'Integrasikan konten pembelajaran yang relevan ke ritme kerja harian agar dapat diakses kapan pun, disajikan dalam beragam format, serta dapat dilacak dan didukung feedback. Gunakan kuis, tes, dan survei untuk memperkuat hasil belajar.',
                     icon: 'Sparkles',
                 },
             ],
@@ -310,19 +310,19 @@ export const PUBLIC_FEATURE_CATALOG: Record<string, PublicFeatureCatalogEntry> =
                 {
                     title: 'Sederhanakan & Otomatisasi Proses untuk Kepatuhan Regulasi',
                     description:
-                        'Atur penjadwalan, approval, pengingat timesheet, dan pemantauan jam kerja sesuai kebijakan organisasi.',
+                        'Sesuaikan aturan waktu kerja dengan kebutuhan bisnis, kebijakan perusahaan, operasional global, dan regulasi lokal. Otomatiskan proses serta persetujuan lintas perangkat, penjadwalan shift, pengingat timesheet, dan pemantauan jam kerja mingguan serta biaya proyek agar aturan payroll lebih jelas dan risiko ketidakpatuhan berkurang.',
                     icon: 'ShieldAlert',
                 },
                 {
                     title: 'Hadirkan Pengalaman Karyawan yang Lebih Baik',
                     description:
-                        'Karyawan melihat jadwal, mengajukan cuti atau lembur, dan mengatur pertukaran shift dari kalender yang intuitif.',
+                        'Rencanakan jadwal melalui fungsi penjadwalan yang intuitif dan gunakan notifikasi untuk mencegah penugasan berlebih. Karyawan dapat mengubah shift dengan quick apply, menerima jadwal langsung di ponsel, melihat agenda harian di kalender, serta mengajukan cuti, lembur, atau tugas.',
                     icon: 'CalendarDays',
                 },
                 {
                     title: 'Pusat Data dari Berbagai Sumber',
                     description:
-                        'Kumpulkan clock-in/out dari aplikasi, kios, perangkat eksternal, GPS, geo-fencing, dan face verification.',
+                        'Satukan data kehadiran dari Avana HR, kios, dan perangkat eksternal dengan GPS tagging serta pengenalan wajah. Karyawan dapat clock-in/out lewat ponsel, menggunakan geo-fencing, mengajukan koreksi mandiri, dan mencatat kehadiran saat offline. Deteksi keterlambatan dan ketidakhadiran secara otomatis, serta gunakan variabel sederhana atau kompleks dari berbagai dimensi sebagai dasar perhitungan.',
                     icon: 'ScanFace',
                 },
             ],
