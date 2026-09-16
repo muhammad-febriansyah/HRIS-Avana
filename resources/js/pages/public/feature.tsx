@@ -2236,6 +2236,90 @@ const FEATURE_PAGES: Record<string, FeaturePageData> = {
             'absensi-karyawan',
         ],
     },
+    'manajemen-aset': {
+        name: 'Manajemen Aset',
+        category: 'Operasional Bisnis',
+        asset: 'employees.png',
+        title: 'Pastikan Setiap Aset Perusahaan Punya Pemilik dan Riwayat yang Jelas',
+        description:
+            'Kelola inventaris, penugasan, kondisi, dan pengembalian aset perusahaan dari satu tempat yang terhubung dengan data karyawan.',
+        heroNote: 'Aset tercatat, penugasan jelas, histori mudah ditelusuri.',
+        problems: [
+            'Data aset masih tersebar di spreadsheet.',
+            'Sulit mengetahui aset sedang dipakai siapa.',
+            'Pengembalian aset tidak memiliki histori yang rapi.',
+            'Kondisi dan nilai aset sulit dipantau dari waktu ke waktu.',
+        ],
+        features: [
+            F(
+                'Register aset',
+                'Simpan kode, kategori, nilai, tanggal beli, kondisi, dan status setiap aset.',
+                BriefcaseBusiness,
+            ),
+            F(
+                'Penugasan karyawan',
+                'Hubungkan aset dengan karyawan yang bertanggung jawab menggunakannya.',
+                Users,
+            ),
+            F(
+                'QR code aset',
+                'Buka detail aset dengan cepat melalui kode QR yang tersedia.',
+                ScanFace,
+            ),
+            F(
+                'Status & kondisi',
+                'Pantau aset yang tersedia, digunakan, dalam perawatan, atau perlu ditindaklanjuti.',
+                ShieldAlert,
+            ),
+            F(
+                'Pengembalian aset',
+                'Catat waktu pengembalian dan lepaskan penugasan tanpa menghilangkan histori.',
+                ClipboardCheck,
+            ),
+            F(
+                'Terhubung dengan HR',
+                'Gunakan data karyawan yang sama untuk proses onboarding, mutasi, dan offboarding.',
+                Network,
+            ),
+        ],
+        steps: [
+            'Tambahkan data aset',
+            'Tetapkan penanggung jawab',
+            'Pantau status & kondisi',
+            'Catat pengembalian',
+        ],
+        benefits: [
+            'Inventaris lebih mudah ditemukan.',
+            'Tanggung jawab penggunaan lebih jelas.',
+            'Histori aset siap untuk audit.',
+            'Risiko aset hilang atau terlupakan berkurang.',
+        ],
+        audience: [
+            'Tim HR dan General Affairs',
+            'Perusahaan dengan banyak perangkat kerja',
+            'Organisasi multi cabang',
+            'Perusahaan yang membutuhkan audit inventaris',
+        ],
+        faqs: [
+            {
+                q: 'Apakah aset bisa ditugaskan ke karyawan?',
+                a: 'Bisa. Setiap aset dapat dihubungkan dengan karyawan yang sedang bertanggung jawab menggunakannya.',
+            },
+            {
+                q: 'Apakah histori pengembalian tersimpan?',
+                a: 'Ya. Histori penugasan dan pengembalian tetap tercatat untuk memudahkan pelacakan.',
+            },
+            {
+                q: 'Apakah tersedia QR code?',
+                a: 'Tersedia. Detail aset dapat dibuka melalui QR code yang dibuat dari sistem.',
+            },
+            {
+                q: 'Apakah aset terhubung dengan data karyawan?',
+                a: 'Ya. Penugasan aset menggunakan data karyawan yang sama di dalam platform AvanaHR.',
+            },
+        ],
+        related: ['core-hr', 'data-karyawan', 'ess', 'administrasi-karier'],
+    },
 };
 
 const FEATURE_SCREENSHOTS: Record<string, string[]> = {
@@ -2261,8 +2345,9 @@ const FEATURE_SCREENSHOTS: Record<string, string[]> = {
     'pengumuman-karyawan': ['pengumuman.png'],
     'survei-karyawan': ['survei.png'],
     'kalender-perusahaan': ['kalender.png'],
+    'manajemen-aset': ['employees.png'],
     crm: ['crm.png'],
-    ess: ['employees.png'],
+    ess: [],
     'otomatisasi-alur-kerja': ['dashboard.png'],
     pelatihan: ['kinerja.png'],
     'time-management': ['absensi.png'],

@@ -39,7 +39,7 @@ export const PUBLIC_FEATURE_CATALOG: Record<string, PublicFeatureCatalogEntry> =
             slug: 'ess',
             name: 'Employee Self Service',
             category: 'HR Core',
-            asset: 'core-hr.png',
+            asset: 'ess-mobile.png',
             title: 'Beri karyawan akses mandiri yang tetap terkontrol',
             description:
                 'Satu ruang bagi karyawan untuk mengelola data, absensi, payroll, pengembangan, dan permintaan HR tanpa menambah pekerjaan administratif tim HR.',

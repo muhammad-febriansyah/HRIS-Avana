@@ -398,6 +398,18 @@ export const MODULES: Module[] = [
         ],
     },
     {
+        title: 'Manajemen Aset',
+        icon: Landmark,
+        tagline: 'Inventaris & Penugasan Aset',
+        desc: 'Catat inventaris, penanggung jawab, kondisi, dan histori aset perusahaan dalam satu alur yang mudah diaudit.',
+        screenshot: '/avana/landing/screenshots/employees.png',
+        highlights: [
+            'Register aset terpusat',
+            'Penugasan ke karyawan',
+            'QR code & histori pengembalian',
+        ],
+    },
+    {
         title: 'Pusat Pengetahuan',
         icon: LifeBuoy,
         tagline: 'Knowledge Base & Helpdesk HR',

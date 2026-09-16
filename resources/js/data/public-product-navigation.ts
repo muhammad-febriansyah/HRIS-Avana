@@ -20,12 +20,23 @@ export const PUBLIC_PRODUCT_NAVIGATION: PublicProductNavigationGroup[] = [
             { label: 'Struktur Organisasi', slug: 'struktur-organisasi' },
             { label: 'Data Karyawan', slug: 'data-karyawan' },
             { label: 'Administrasi Karier', slug: 'administrasi-karier' },
-            { label: 'Helpdesk HR', slug: 'hr-helpdesk' },
             { label: 'ESS', slug: 'ess' },
             {
                 label: 'Otomatisasi Alur Kerja',
                 slug: 'otomatisasi-alur-kerja',
             },
+        ],
+    },
+    {
+        label: 'Employee Experience',
+        moduleTitle: 'Pusat Pengetahuan',
+        slug: 'hr-helpdesk',
+        items: [
+            { label: 'Helpdesk HR', slug: 'hr-helpdesk' },
+            { label: 'Pengumuman', slug: 'pengumuman-karyawan' },
+            { label: 'Ruang Kita', slug: 'ruang-kita' },
+            { label: 'Survei Karyawan', slug: 'survei-karyawan' },
+            { label: 'Kalender Acara', slug: 'kalender-perusahaan' },
         ],
     },
     {
@@ -96,7 +107,22 @@ export const PUBLIC_PRODUCT_NAVIGATION: PublicProductNavigationGroup[] = [
         label: 'AI & Analytics',
         moduleTitle: 'AI & Analytics',
         slug: 'ai-analytics',
-        items: [{ label: 'AI & Analytics', slug: 'ai-analytics' }],
+        items: [
+            { label: 'AI & Analytics', slug: 'ai-analytics' },
+            { label: 'AI Assistant', slug: 'ai-hr' },
+            { label: 'Rapat & Transkrip', slug: 'transkrip-rapat-ai' },
+            { label: 'HR Analytics', slug: 'hr-analytics' },
+            { label: 'Prediksi Risiko Resign', slug: 'prediksi-risiko-resign' },
+        ],
+    },
+    {
+        label: 'Operasional Bisnis',
+        moduleTitle: 'Manajemen Aset',
+        slug: 'manajemen-aset',
+        items: [
+            { label: 'Manajemen Aset', slug: 'manajemen-aset' },
+            { label: 'CRM', slug: 'crm' },
+        ],
     },
 ];
 

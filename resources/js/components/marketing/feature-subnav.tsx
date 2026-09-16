@@ -2,6 +2,7 @@ import { Link } from '@inertiajs/react';
 import { findPublicProductNavigationGroup } from '@/data/public-product-navigation';
 import { cn } from '@/lib/utils';
 import { show as featureShow } from '@/routes/features';
+import { crm as solutionCrm } from '@/routes/solution';
 
 export function FeatureSubnav({ currentSlug }: { currentSlug: string }) {
     const navigationGroup = findPublicProductNavigationGroup(currentSlug);
@@ -22,7 +23,11 @@ export function FeatureSubnav({ currentSlug }: { currentSlug: string }) {
                     return (
                         <Link
                             key={item.slug}
-                            href={featureShow.url(item.slug)}
+                            href={
+                                item.slug === 'crm'
+                                    ? solutionCrm.url()
+                                    : featureShow.url(item.slug)
+                            }
                             prefetch
                             aria-current={isActive ? 'page' : undefined}
                             className={cn(

@@ -36,6 +36,7 @@ class FeaturePageController extends Controller
         'prediksi-risiko-resign',
         'transkrip-rapat-ai',
         'hr-helpdesk',
+        'manajemen-aset',
         'mood-karyawan',
         'ruang-kita',
         'pengumuman-karyawan',
