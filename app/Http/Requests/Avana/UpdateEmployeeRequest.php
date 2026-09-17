@@ -93,6 +93,17 @@ class UpdateEmployeeRequest extends FormRequest
             'contract_end_date' => ['nullable', 'date', 'after:contract_start_date', 'required_unless:contract_type,pkwtt'],
             // Kept on the employee's BPJS profile, not the employee row.
             'bpjs_kesehatan_number' => ['nullable', 'string', 'max:32'],
+            'bpjs_participation_status' => ['sometimes', Rule::in(['not_participant', 'participant'])],
+            'bpjs_program_ids' => [
+                'sometimes',
+                'array',
+                'required_if:bpjs_participation_status,participant',
+            ],
+            'bpjs_program_ids.*' => [
+                'integer',
+                Rule::exists('bpjs_programs', 'id')->where('tenant_id', $tenantId),
+            ],
+            'bpjs_registered_wage' => ['nullable', 'numeric', 'min:0'],
             'ptkp_status' => ['required', 'string', Rule::in(array_keys(Pph21Ter::statutoryCategoryMap()))],
             'bpjs_ketenagakerjaan_number' => ['nullable', 'string', 'max:32'],
             // The payroll bank account, kept on its own row. Optional: a new

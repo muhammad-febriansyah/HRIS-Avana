@@ -121,6 +121,9 @@ export type Employee = {
     } | null;
     /** BPJS membership numbers, kept on the employee's BPJS profile. */
     bpjs_kesehatan_number?: string | null;
+    bpjs_participation_status?: 'not_participant' | 'participant';
+    bpjs_registered_wage?: number | string | null;
+    bpjs_program_ids?: number[];
     /** PTKP code the PPh 21 calculation is based on. */
     ptkp_status?: string | null;
     bpjs_ketenagakerjaan_number?: string | null;
@@ -217,6 +220,7 @@ export type EmployeeFormOptions = {
     positions: NamedOption[];
     jobLevels: NamedOption[];
     salaryMasters: NamedOption[];
+    bpjsPrograms: BpjsProgramOption[];
     roles: RoleOption[];
     linkableUsers: LinkableUser[];
     managers: ManagerRef[];
@@ -224,6 +228,14 @@ export type EmployeeFormOptions = {
     statuses: SelectOption[];
     contractTypes: SelectOption[];
     employmentStatuses: SelectOption[];
+};
+
+export type BpjsProgramOption = {
+    id: number;
+    code: string;
+    name: string;
+    type: string | null;
+    is_active: boolean;
 };
 
 /** Flat string-only form payload backing both the create and edit forms. */
@@ -252,6 +264,9 @@ export type EmployeeFormData = {
     contract_start_date: string;
     contract_end_date: string;
     bpjs_kesehatan_number: string;
+    bpjs_participation_status: 'not_participant' | 'participant';
+    bpjs_registered_wage: string;
+    bpjs_program_ids: string[];
     ptkp_status: string;
     bpjs_ketenagakerjaan_number: string;
     bank_name: string;
@@ -386,6 +401,9 @@ export const STEP_FIELDS: string[][] = [
         'contract_start_date',
         'contract_end_date',
         'bpjs_ketenagakerjaan_number',
+        'bpjs_participation_status',
+        'bpjs_registered_wage',
+        'bpjs_program_ids',
         'bank_name',
         'bank_account_number',
         'bank_account_holder',

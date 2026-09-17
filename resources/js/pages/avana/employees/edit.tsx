@@ -69,6 +69,10 @@ export default function EmployeesEdit({
         contract_start_date: activeContract?.start_date_raw ?? '',
         contract_end_date: activeContract?.end_date_raw ?? '',
         bpjs_kesehatan_number: data.bpjs_kesehatan_number ?? '',
+        bpjs_participation_status:
+            data.bpjs_participation_status ?? 'not_participant',
+        bpjs_registered_wage: String(data.bpjs_registered_wage ?? ''),
+        bpjs_program_ids: (data.bpjs_program_ids ?? []).map(String),
         ptkp_status: data.ptkp_status ?? '',
         bpjs_ketenagakerjaan_number: data.bpjs_ketenagakerjaan_number ?? '',
         bank_name: data.bank_name ?? '',

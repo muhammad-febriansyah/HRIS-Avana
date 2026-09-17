@@ -1372,48 +1372,202 @@ export function EmployeeForm({
                         </Field>
 
                         <Field
-                            htmlFor="bpjs_ketenagakerjaan_number"
-                            label="No. BPJS Ketenagakerjaan"
-                            error={errors.bpjs_ketenagakerjaan_number}
+                            htmlFor="bpjs_participation_status"
+                            label="Kepesertaan BPJS"
+                            required
+                            error={errors.bpjs_participation_status}
+                            hint="Karyawan tanpa kepesertaan tidak dikenakan iuran BPJS."
                         >
-                            <input
-                                id="bpjs_ketenagakerjaan_number"
-                                value={data.bpjs_ketenagakerjaan_number}
+                            <select
+                                id="bpjs_participation_status"
+                                value={data.bpjs_participation_status}
                                 onChange={(event) =>
                                     setData(
-                                        'bpjs_ketenagakerjaan_number',
+                                        'bpjs_participation_status',
+                                        event.target.value as
+                                            | 'not_participant'
+                                            | 'participant',
+                                    )
+                                }
+                                style={styleFor(
+                                    !!errors.bpjs_participation_status,
+                                    selectStyle,
+                                )}
+                            >
+                                <option value="not_participant">
+                                    Tidak ikut BPJS
+                                </option>
+                                <option value="participant">
+                                    Ikut BPJS
+                                </option>
+                            </select>
+                        </Field>
+
+                        <Field
+                            htmlFor="bpjs_registered_wage"
+                            label="Upah Terdaftar BPJS"
+                            error={errors.bpjs_registered_wage}
+                            hint="Kosongkan jika memakai dasar upah payroll."
+                        >
+                            <input
+                                id="bpjs_registered_wage"
+                                type="number"
+                                min="0"
+                                value={data.bpjs_registered_wage}
+                                onChange={(event) =>
+                                    setData(
+                                        'bpjs_registered_wage',
                                         event.target.value,
                                     )
                                 }
-                                placeholder="mis. 21012345678"
+                                placeholder="Opsional"
                                 style={styleFor(
-                                    !!errors.bpjs_ketenagakerjaan_number,
+                                    !!errors.bpjs_registered_wage,
                                     inputStyle,
                                 )}
                             />
                         </Field>
 
-                        <Field
-                            htmlFor="bpjs_kesehatan_number"
-                            label="No. BPJS Kesehatan"
-                            error={errors.bpjs_kesehatan_number}
-                        >
-                            <input
-                                id="bpjs_kesehatan_number"
-                                value={data.bpjs_kesehatan_number}
-                                onChange={(event) =>
-                                    setData(
-                                        'bpjs_kesehatan_number',
-                                        event.target.value,
-                                    )
-                                }
-                                placeholder="mis. 0001234567890"
-                                style={styleFor(
-                                    !!errors.bpjs_kesehatan_number,
-                                    inputStyle,
-                                )}
-                            />
-                        </Field>
+                        {data.bpjs_participation_status === 'participant' && (
+                            <div style={{ gridColumn: '1 / -1' }}>
+                                <div style={labelStyle}>
+                                    Program BPJS yang diikuti {req}
+                                </div>
+                                <div
+                                    style={{
+                                        display: 'grid',
+                                        gridTemplateColumns:
+                                            'repeat(2, minmax(0, 1fr))',
+                                        gap: 10,
+                                    }}
+                                >
+                                    {options.bpjsPrograms.map((program) => {
+                                        const programId = String(program.id);
+                                        const checked =
+                                            data.bpjs_program_ids.includes(
+                                                programId,
+                                            );
+
+                                        return (
+                                            <label
+                                                key={program.id}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 9,
+                                                    padding: '11px 13px',
+                                                    border: `1px solid ${
+                                                        checked
+                                                            ? C.primary
+                                                            : C.border
+                                                    }`,
+                                                    borderRadius: 8,
+                                                    background: checked
+                                                        ? '#eef2ff'
+                                                        : '#fff',
+                                                    color: C.text,
+                                                    cursor: 'pointer',
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={checked}
+                                                    disabled={!program.is_active}
+                                                    onChange={() =>
+                                                        setData(
+                                                            'bpjs_program_ids',
+                                                            checked
+                                                                ? data.bpjs_program_ids.filter(
+                                                                      (id) =>
+                                                                          id !==
+                                                                          programId,
+                                                                  )
+                                                                : [
+                                                                      ...data.bpjs_program_ids,
+                                                                      programId,
+                                                                  ],
+                                                        )
+                                                    }
+                                                />
+                                                <span>
+                                                    <strong>{program.name}</strong>
+                                                    <small
+                                                        style={{
+                                                            display: 'block',
+                                                            color: C.muted,
+                                                            marginTop: 2,
+                                                        }}
+                                                    >
+                                                        {program.code}
+                                                        {!program.is_active
+                                                            ? ' · Nonaktif'
+                                                            : ''}
+                                                    </small>
+                                                </span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                                {errors.bpjs_program_ids ? (
+                                    <div style={errorTextStyle}>
+                                        <AIcon
+                                            name="circle-alert"
+                                            size={13}
+                                            color={C.red}
+                                        />
+                                        {errors.bpjs_program_ids}
+                                    </div>
+                                ) : null}
+                            </div>
+                        )}
+
+                        {data.bpjs_participation_status === 'participant' && (
+                            <>
+                                <Field
+                                    htmlFor="bpjs_ketenagakerjaan_number"
+                                    label="No. BPJS Ketenagakerjaan"
+                                    error={errors.bpjs_ketenagakerjaan_number}
+                                >
+                                    <input
+                                        id="bpjs_ketenagakerjaan_number"
+                                        value={data.bpjs_ketenagakerjaan_number}
+                                        onChange={(event) =>
+                                            setData(
+                                                'bpjs_ketenagakerjaan_number',
+                                                event.target.value,
+                                            )
+                                        }
+                                        placeholder="mis. 21012345678"
+                                        style={styleFor(
+                                            !!errors.bpjs_ketenagakerjaan_number,
+                                            inputStyle,
+                                        )}
+                                    />
+                                </Field>
+
+                                <Field
+                                    htmlFor="bpjs_kesehatan_number"
+                                    label="No. BPJS Kesehatan"
+                                    error={errors.bpjs_kesehatan_number}
+                                >
+                                    <input
+                                        id="bpjs_kesehatan_number"
+                                        value={data.bpjs_kesehatan_number}
+                                        onChange={(event) =>
+                                            setData(
+                                                'bpjs_kesehatan_number',
+                                                event.target.value,
+                                            )
+                                        }
+                                        placeholder="mis. 0001234567890"
+                                        style={styleFor(
+                                            !!errors.bpjs_kesehatan_number,
+                                            inputStyle,
+                                        )}
+                                    />
+                                </Field>
+                            </>
+                        )}
 
                         <Field
                             htmlFor="ptkp_status"

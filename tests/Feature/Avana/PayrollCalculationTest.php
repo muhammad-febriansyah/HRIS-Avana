@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\Avana\PayrollController;
 use App\Models\Attendance;
+use App\Models\BpjsProgram;
 use App\Models\BpjsRate;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
+use App\Models\EmployeeBpjsProgram;
 use App\Models\OvertimeRequest;
 use App\Models\Payday;
 use App\Models\PayrollComponent;
@@ -361,6 +363,63 @@ it('deducts internal BPJS computed from the registered wage', function (): void 
     expect((float) $deductions->firstWhere('name', 'JHT (Karyawan)')['amount'])->toBe(100_000.0);
     expect((float) $deductions->firstWhere('name', 'JP (Karyawan)')['amount'])->toBe(50_000.0);
     expect($deductions->firstWhere('name', 'BPJS (Karyawan)'))->toBeNull();
+});
+
+it('skips every BPJS contribution for a non-participant employee', function (): void {
+    configureComponent($this->employee, 'BASIC', 'fixed', 5_000_000);
+
+    EmployeeBpjsProfile::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'participation_status' => 'not_participant',
+        'registered_wage' => 5_000_000,
+    ]);
+
+    $item = runAndItem($this);
+
+    expect((float) $item->bpjs_employee_total)->toBe(0.0)
+        ->and((float) $item->bpjs_company_total)->toBe(0.0)
+        ->and($item->calculation_snapshot['bpjs']['programs'] ?? [])->toBe([]);
+});
+
+it('calculates only the tenant programs selected for an employee', function (): void {
+    configureComponent($this->employee, 'BASIC', 'fixed', 5_000_000);
+
+    $jkp = BpjsProgram::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'JKP-SPEC',
+        'name' => 'BPJS JKP Spec',
+        'type' => 'jkp',
+        'is_active' => true,
+    ]);
+    $jkp->rates()->create([
+        'employee_rate' => 0.005,
+        'company_rate' => 0.002,
+        'effective_start_date' => '2026-01-01',
+        'is_active' => true,
+    ]);
+
+    $profile = EmployeeBpjsProfile::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'participation_status' => 'participant',
+        'registered_wage' => 5_000_000,
+    ]);
+    EmployeeBpjsProgram::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'program_id' => $jkp->id,
+        'is_active' => true,
+        'effective_start_date' => '2026-01-01',
+    ]);
+
+    $item = runAndItem($this);
+    $programs = $item->calculation_snapshot['bpjs']['programs'] ?? [];
+
+    expect($profile->participation_status)->toBe('participant')
+        ->and(array_keys($programs))->toBe(['jkp-spec'])
+        ->and((float) $programs['jkp-spec']['employee'])->toBe(25_000.0)
+        ->and((float) $item->bpjs_employee_total)->toBe(25_000.0);
 });
 
 it('omits JP contributions when the tenant disables JP', function (): void {

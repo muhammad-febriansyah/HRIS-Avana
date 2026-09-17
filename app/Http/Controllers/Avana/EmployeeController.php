@@ -11,11 +11,13 @@ use App\Http\Requests\Avana\UpdateEmployeeRequest;
 use App\Http\Resources\Avana\EmployeeResource;
 use App\Imports\EmployeeBulkRowsImport;
 use App\Models\AttendancePolicy;
+use App\Models\BpjsProgram;
 use App\Models\Branch;
 use App\Models\CustomField;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
+use App\Models\EmployeeBpjsProgram;
 use App\Models\EmployeeContract;
 use App\Models\JobLevel;
 use App\Models\Position;
@@ -165,6 +167,7 @@ class EmployeeController extends Controller
         $roleId = $data['role_id'] ?? null;
         $linkUserId = $data['link_user_id'] ?? null;
         $bpjs = $this->pullBpjsNumbers($data);
+        $bpjsParticipation = $this->pullBpjsParticipation($data);
         $ptkp = $this->pullPtkpStatus($data);
         $contract = $this->pullContract($data);
         $bankAccount = $this->pullBankAccount($data);
@@ -178,6 +181,7 @@ class EmployeeController extends Controller
         $employee = Employee::create($data);
 
         $this->syncBpjsNumbers($employee, $bpjs);
+        $this->syncBpjsParticipation($employee, $bpjsParticipation);
         $this->syncPtkpStatus($employee, $ptkp);
         $this->syncContract($employee, $contract);
         $this->syncBankAccount($employee, $bankAccount);
@@ -672,6 +676,7 @@ class EmployeeController extends Controller
         $roleId = $data['role_id'] ?? null;
         $linkUserId = $data['link_user_id'] ?? null;
         $bpjs = $this->pullBpjsNumbers($data);
+        $bpjsParticipation = $this->pullBpjsParticipation($data);
         $ptkp = $this->pullPtkpStatus($data);
         $contract = $this->pullContract($data);
         $bankAccount = $this->pullBankAccount($data);
@@ -680,6 +685,7 @@ class EmployeeController extends Controller
         $employee->update($data);
 
         $this->syncBpjsNumbers($employee, $bpjs);
+        $this->syncBpjsParticipation($employee, $bpjsParticipation);
         $this->syncPtkpStatus($employee, $ptkp);
         $this->syncContract($employee, $contract);
         $this->syncBankAccount($employee, $bankAccount);
@@ -705,7 +711,7 @@ class EmployeeController extends Controller
     private function offRowRelations(): array
     {
         return [
-            'bpjsProfile' => fn ($query) => $query,
+            'bpjsProfile.programs' => fn ($query) => $query->orderBy('program_id'),
             'taxProfile' => fn ($query) => $query,
             // Newest first, so the form corrects the contract in force.
             'contracts' => fn ($query) => $query->latest('start_date')->latest('id'),
@@ -794,6 +800,100 @@ class EmployeeController extends Controller
             ['tenant_id' => $employee->tenant_id, 'employee_id' => $employee->id],
             $numbers,
         );
+    }
+
+    /**
+     * Take the tenant-scoped BPJS participation choices out of the payload.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{status: string, program_ids: array<int, int>, registered_wage: float|null}|null
+     */
+    private function pullBpjsParticipation(array &$data): ?array
+    {
+        if (! array_key_exists('bpjs_participation_status', $data)
+            && ! array_key_exists('bpjs_program_ids', $data)
+            && ! array_key_exists('bpjs_registered_wage', $data)) {
+            return null;
+        }
+
+        $status = (string) ($data['bpjs_participation_status'] ?? 'not_participant');
+        $programIds = collect($data['bpjs_program_ids'] ?? [])
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+        $registeredWage = array_key_exists('bpjs_registered_wage', $data)
+            && $data['bpjs_registered_wage'] !== null
+            ? (float) $data['bpjs_registered_wage']
+            : null;
+
+        unset($data['bpjs_participation_status'], $data['bpjs_program_ids'], $data['bpjs_registered_wage']);
+
+        return [
+            'status' => $status,
+            'program_ids' => $programIds,
+            'registered_wage' => $registeredWage,
+        ];
+    }
+
+    /**
+     * Synchronize participation against programs owned by the employee's
+     * tenant. An explicit non-participant choice keeps an audit row while
+     * ensuring payroll cannot calculate any BPJS for the employee.
+     *
+     * @param  array{status: string, program_ids: array<int, int>, registered_wage: float|null}|null  $participation
+     */
+    private function syncBpjsParticipation(Employee $employee, ?array $participation): void
+    {
+        if ($participation === null) {
+            return;
+        }
+
+        $tenantId = (int) $employee->tenant_id;
+        $programIds = $participation['status'] === 'participant'
+            ? $participation['program_ids']
+            : [];
+
+        $validProgramIds = BpjsProgram::forTenant($tenantId)
+            ->whereIn('id', $programIds)
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+
+        $profileAttributes = ['participation_status' => $participation['status']];
+
+        if ($participation['registered_wage'] !== null) {
+            $profileAttributes['registered_wage'] = $participation['registered_wage'];
+        }
+
+        $profile = EmployeeBpjsProfile::updateOrCreate(
+            ['tenant_id' => $tenantId, 'employee_id' => $employee->id],
+            $profileAttributes,
+        );
+
+        $enrollments = EmployeeBpjsProgram::forTenant($tenantId)
+            ->where('employee_id', $employee->id);
+
+        if ($validProgramIds === []) {
+            $enrollments->delete();
+        } else {
+            $enrollments->whereNotIn('program_id', $validProgramIds)->delete();
+        }
+
+        foreach ($validProgramIds as $programId) {
+            EmployeeBpjsProgram::updateOrCreate(
+                [
+                    'tenant_id' => $tenantId,
+                    'employee_id' => $employee->id,
+                    'program_id' => $programId,
+                ],
+                [
+                    'is_active' => true,
+                    'effective_start_date' => $profile->effective_start_date,
+                    'effective_end_date' => $profile->effective_end_date,
+                ],
+            );
+        }
     }
 
     /**
@@ -1283,6 +1383,17 @@ class EmployeeController extends Controller
                     'id' => $master->id,
                     'name' => $master->code.($master->category !== null ? ' · '.$master->category : ''),
                 ]),
+            'bpjsPrograms' => BpjsProgram::forTenant($tenantId)
+                ->orderBy('name')
+                ->get(['id', 'code', 'name', 'type', 'is_active'])
+                ->map(fn (BpjsProgram $program): array => [
+                    'id' => $program->id,
+                    'code' => $program->code,
+                    'name' => $program->name,
+                    'type' => $program->type,
+                    'is_active' => (bool) $program->is_active,
+                ])
+                ->all(),
             // `can_access_mobile` rides along so the picker can warn that the role
             // has no phone access — the dropdown sits in the mobile-account section.
             'roles' => Role::where('tenant_id', $tenantId)->select('id', 'name', 'can_access_mobile')->orderBy('name')->get(),

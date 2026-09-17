@@ -229,6 +229,11 @@ final class Employee extends Model
         return $this->hasOne(EmployeeBpjsProfile::class);
     }
 
+    public function bpjsPrograms(): HasMany
+    {
+        return $this->hasMany(EmployeeBpjsProgram::class);
+    }
+
     /**
      * Likes this employee has given, used to mark the feed without a query per
      * post.

@@ -1,6 +1,9 @@
 <?php
 
+use App\Models\BpjsProgram;
 use App\Models\Employee;
+use App\Models\EmployeeBpjsProfile;
+use App\Models\EmployeeBpjsProgram;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\TaxProfile;
@@ -123,6 +126,80 @@ it('saves the PTKP status from the employee form', function (): void {
         ->assertRedirect();
 
     expect(TaxProfile::where('employee_id', $this->staff->id)->value('ptkp_status'))->toBe('K/2');
+});
+
+it('saves employee BPJS participation against tenant programs', function (): void {
+    $programs = BpjsProgram::forTenant($this->tenant->id)
+        ->whereIn('code', ['KESEHATAN', 'JHT'])
+        ->pluck('id', 'code');
+
+    actingAs($this->hr)
+        ->put(route('avana.employees.update', $this->staff), ($this->payload)([
+            'bpjs_participation_status' => 'participant',
+            'bpjs_program_ids' => [$programs['KESEHATAN'], $programs['JHT']],
+            'bpjs_registered_wage' => 5_000_000,
+        ]))
+        ->assertRedirect();
+
+    $profile = EmployeeBpjsProfile::where('employee_id', $this->staff->id)->firstOrFail();
+
+    expect($profile->participation_status)->toBe('participant')
+        ->and((float) $profile->registered_wage)->toBe(5_000_000.0)
+        ->and(EmployeeBpjsProgram::where('employee_id', $this->staff->id)
+            ->pluck('program_id')
+            ->sort()
+            ->values()
+            ->all())
+        ->toBe($programs->values()->sort()->values()->all());
+});
+
+it('removes employee BPJS enrollments when participation is disabled', function (): void {
+    $program = BpjsProgram::forTenant($this->tenant->id)->where('code', 'JHT')->firstOrFail();
+
+    EmployeeBpjsProfile::updateOrCreate(
+        ['tenant_id' => $this->tenant->id, 'employee_id' => $this->staff->id],
+        ['participation_status' => 'participant'],
+    );
+    EmployeeBpjsProgram::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->staff->id,
+        'program_id' => $program->id,
+    ]);
+
+    actingAs($this->hr)
+        ->put(route('avana.employees.update', $this->staff), ($this->payload)([
+            'bpjs_participation_status' => 'not_participant',
+            'bpjs_program_ids' => [],
+        ]))
+        ->assertRedirect();
+
+    expect(EmployeeBpjsProfile::where('employee_id', $this->staff->id)->value('participation_status'))
+        ->toBe('not_participant')
+        ->and(EmployeeBpjsProgram::where('employee_id', $this->staff->id)->exists())
+        ->toBeFalse();
+});
+
+it('rejects a BPJS program owned by another tenant', function (): void {
+    $foreignTenant = Tenant::create([
+        'name' => 'Tenant BPJS Lain',
+        'slug' => 'tenant-bpjs-lain',
+    ]);
+    $foreignProgram = BpjsProgram::create([
+        'tenant_id' => $foreignTenant->id,
+        'code' => 'JHT',
+        'name' => 'JHT Tenant Lain',
+        'type' => 'jht',
+        'is_active' => true,
+    ]);
+
+    actingAs($this->hr)
+        ->put(route('avana.employees.update', $this->staff), ($this->payload)([
+            'bpjs_participation_status' => 'participant',
+            'bpjs_program_ids' => [$foreignProgram->id],
+        ]))
+        ->assertSessionHasErrors('bpjs_program_ids.0');
+
+    expect(EmployeeBpjsProgram::where('employee_id', $this->staff->id)->exists())->toBeFalse();
 });
 
 it('refuses a PTKP code the calculator does not know', function (): void {

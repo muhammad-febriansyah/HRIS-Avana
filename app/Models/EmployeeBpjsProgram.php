@@ -5,22 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-final class EmployeeBpjsProfile extends Model
+final class EmployeeBpjsProgram extends Model
 {
     protected $guarded = [];
 
     protected function casts(): array
     {
         return [
-            'participation_status' => 'string',
-            'registered_wage' => 'decimal:2',
-            'jht_enabled' => 'boolean',
-            'jkk_enabled' => 'boolean',
-            'jkm_enabled' => 'boolean',
-            'jp_enabled' => 'boolean',
-            'kesehatan_enabled' => 'boolean',
+            'is_active' => 'boolean',
             'effective_start_date' => 'date',
             'effective_end_date' => 'date',
         ];
@@ -41,8 +34,8 @@ final class EmployeeBpjsProfile extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    public function programs(): HasMany
+    public function program(): BelongsTo
     {
-        return $this->hasMany(EmployeeBpjsProgram::class, 'employee_id', 'employee_id');
+        return $this->belongsTo(BpjsProgram::class);
     }
 }

@@ -14,6 +14,7 @@ use App\Models\Company;
 use App\Models\DayCalcMethod;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
+use App\Models\EmployeeBpjsProgram;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\IncentiveCalculation;
 use App\Models\Loan;
@@ -3629,6 +3630,16 @@ class PayrollController extends Controller
             ];
         }
 
+        if ($profile->participation_status === 'not_participant') {
+            return [
+                'employee' => 0.0,
+                'company' => 0.0,
+                'taxable_company' => 0.0,
+                'deductible_employee' => 0.0,
+                'snapshot' => [],
+            ];
+        }
+
         $base = (float) $profile->registered_wage > 0
             ? (float) $profile->registered_wage
             : $fallbackWage;
@@ -3648,8 +3659,20 @@ class PayrollController extends Controller
         $lines = [];
         $jpEnabled = (bool) (Tenant::find($tenantId)?->bpjs_jp_enabled ?? true);
 
+        $enrollmentQuery = EmployeeBpjsProgram::forTenant($tenantId)
+            ->where('employee_id', $employee->id);
+        $hasExplicitEnrollment = $enrollmentQuery->exists();
+        $enrolledProgramIds = $hasExplicitEnrollment
+            ? $enrollmentQuery
+                ->where('is_active', true)
+                ->where(fn ($query) => $query->whereNull('effective_start_date')->orWhereDate('effective_start_date', '<=', $date))
+                ->where(fn ($query) => $query->whereNull('effective_end_date')->orWhereDate('effective_end_date', '>=', $date))
+                ->pluck('program_id')
+            : collect();
+
         $programs = BpjsProgram::forTenant($tenantId)
             ->where('is_active', true)
+            ->when($hasExplicitEnrollment, fn ($query) => $query->whereIn('id', $enrolledProgramIds))
             ->with(['rates' => fn ($query) => $query
                 ->where('is_active', true)
                 ->where(fn ($q) => $q->whereNull('effective_start_date')->orWhereDate('effective_start_date', '<=', $date))
@@ -3660,7 +3683,7 @@ class PayrollController extends Controller
         foreach ($programs as $program) {
             $code = strtolower((string) $program->code);
 
-            if ($profile !== null && isset($enabledMap[$code]) && ! $profile->{$enabledMap[$code]}) {
+            if (! $hasExplicitEnrollment && isset($enabledMap[$code]) && ! $profile->{$enabledMap[$code]}) {
                 continue;
             }
 

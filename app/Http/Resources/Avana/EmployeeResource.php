@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Avana;
 
 use App\Models\AssetAssignment;
+use App\Models\BpjsProgram;
 use App\Models\Employee;
 use App\Models\EmployeeContract;
 use App\Models\EmployeeDocument;
@@ -34,7 +35,7 @@ final class EmployeeResource extends JsonResource
      *
      * @var list<string>
      */
-    public const OFF_ROW_RELATIONS = ['bpjsProfile', 'taxProfile', 'contracts'];
+    public const OFF_ROW_RELATIONS = ['bpjsProfile.programs', 'taxProfile', 'contracts'];
 
     /**
      * Indonesian labels for the employment_status enum.
@@ -186,6 +187,9 @@ final class EmployeeResource extends JsonResource
             // row, and are printed on the payslip and every filing.
             'bpjs_kesehatan_number' => $this->whenLoaded('bpjsProfile', fn () => $this->bpjsProfile?->bpjs_kesehatan_number),
             'bpjs_ketenagakerjaan_number' => $this->whenLoaded('bpjsProfile', fn () => $this->bpjsProfile?->bpjs_ketenagakerjaan_number),
+            'bpjs_participation_status' => $this->whenLoaded('bpjsProfile', fn () => $this->bpjsProfile?->participation_status ?? 'not_participant'),
+            'bpjs_registered_wage' => $this->whenLoaded('bpjsProfile', fn () => $this->bpjsProfile?->registered_wage),
+            'bpjs_program_ids' => $this->whenLoaded('bpjsProfile', fn () => $this->bpjsProgramIds()),
             // The payroll bank account, flattened: the form edits one account,
             // and the transfer file reads the same row.
             'bank_name' => $this->whenLoaded('bankAccounts', fn () => $this->primaryBankAccount()?->bank_name),
@@ -257,6 +261,46 @@ final class EmployeeResource extends JsonResource
                 ])
                 ->values()),
         ];
+    }
+
+    /**
+     * Return explicit enrollments, with a legacy flag fallback for profiles
+     * created before employee-level program selections existed.
+     *
+     * @return list<int>
+     */
+    private function bpjsProgramIds(): array
+    {
+        $profile = $this->bpjsProfile;
+
+        if ($profile === null || $profile->participation_status === 'not_participant') {
+            return [];
+        }
+
+        $programIds = $profile->programs
+            ->pluck('program_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
+
+        if ($programIds !== []) {
+            return $programIds;
+        }
+
+        $legacyCodes = collect([
+            'kesehatan_enabled' => 'KESEHATAN',
+            'jht_enabled' => 'JHT',
+            'jp_enabled' => 'JP',
+            'jkk_enabled' => 'JKK',
+            'jkm_enabled' => 'JKM',
+        ])->filter(fn (string $code, string $flag): bool => (bool) $profile->{$flag})->values();
+
+        return BpjsProgram::forTenant((int) $this->tenant_id)
+            ->whereIn('code', $legacyCodes)
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
     }
 
     /**
