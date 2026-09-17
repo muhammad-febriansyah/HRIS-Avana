@@ -18,6 +18,7 @@ export default function PayrollConfig({
     taxSubjects,
     ptkpStatuses,
     settings,
+    canManageBpjs,
     features,
 }: PayrollConfigProps) {
     const { flash } = usePage<FlashProps>().props;
@@ -41,8 +42,7 @@ export default function PayrollConfig({
                 enforce_payroll_segregation:
                     settings.enforce_payroll_segregation,
                 require_salary_approval: settings.require_salary_approval,
-                tax_includes_employer_bpjs:
-                    settings.tax_includes_employer_bpjs,
+                tax_includes_employer_bpjs: settings.tax_includes_employer_bpjs,
                 bpjs_jp_enabled: settings.bpjs_jp_enabled,
                 ...patch,
             },
@@ -364,8 +364,8 @@ export default function PayrollConfig({
                                 }}
                             >
                                 Jika nonaktif, iuran Jaminan Pensiun (JP) tidak
-                                dihitung dalam payroll perusahaan ini. Master
-                                JP tetap aktif untuk perusahaan lain.
+                                dihitung dalam payroll perusahaan ini. Master JP
+                                tetap aktif untuk perusahaan lain.
                             </div>
                         </div>
                     </div>
@@ -377,9 +377,7 @@ export default function PayrollConfig({
                             cursor: 'pointer',
                             fontSize: 13.5,
                             fontWeight: 600,
-                            color: settings.bpjs_jp_enabled
-                                ? C.green
-                                : C.muted,
+                            color: settings.bpjs_jp_enabled ? C.green : C.muted,
                         }}
                     >
                         <input
@@ -518,7 +516,7 @@ export default function PayrollConfig({
 
                 {/* Active section */}
                 {activeKey === 'bpjs' ? (
-                    <BpjsTab programs={programs} />
+                    <BpjsTab programs={programs} canManage={canManageBpjs} />
                 ) : activeKey === 'pph21' ? (
                     <Pph21Tab ptkpRates={ptkpRates} pkpRates={pkpRates} />
                 ) : (

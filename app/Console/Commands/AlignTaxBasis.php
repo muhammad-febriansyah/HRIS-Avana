@@ -118,7 +118,7 @@ class AlignTaxBasis extends Command
         $this->table(['Tenant', 'Kode', 'Komponen', 'PPh 21', 'Basis BPJS'], $rows);
 
         $premium = $this->applyEmployerPremium($tenantId, $apply);
-        $this->reportBpjsWageCeilings($apply);
+        $this->reportBpjsWageCeilings($tenantId, $apply);
 
         if (! $apply) {
             $this->newLine();
@@ -135,19 +135,22 @@ class AlignTaxBasis extends Command
     }
 
     /**
-     * The wage ceilings, which live on the BPJS rate master rather than on a
-     * tenant. Without them a premium is charged on the full wage, so anyone
+     * The wage ceilings, which live on the tenant's BPJS rate master. Without
+     * them a premium is charged on the full wage, so anyone
      * paid above the ceiling is over-deducted — the kind of error that only
      * shows up on the payslips of the highest earners.
      */
-    private function reportBpjsWageCeilings(bool $apply): void
+    private function reportBpjsWageCeilings(?int $tenantId, bool $apply): void
     {
         $caps = array_filter([
             'KESEHATAN' => $this->option('kesehatan-cap'),
             'JP' => $this->option('jp-cap'),
         ], static fn (mixed $value): bool => $value !== null);
 
-        $programs = BpjsProgram::with(['rates' => fn ($query) => $query->where('is_active', true)])->get();
+        $programs = BpjsProgram::query()
+            ->when($tenantId !== null, fn ($query) => $query->where('tenant_id', $tenantId))
+            ->with(['rates' => fn ($query) => $query->where('is_active', true)])
+            ->get();
 
         $this->newLine();
         $rows = [];
@@ -178,9 +181,11 @@ class AlignTaxBasis extends Command
         }
 
         $this->table(['Program BPJS', 'Karyawan', 'Perusahaan', 'Batas Upah'], $rows);
-        $this->line('Persentase dan batas upah di atas berlaku untuk semua tenant — ini master global, bukan setelan per perusahaan.');
+        $this->line($tenantId === null
+            ? 'Pratinjau menampilkan program BPJS seluruh tenant.'
+            : "Program BPJS tenant {$tenantId} diperbarui sesuai opsi yang diberikan.");
 
-        $this->employerOnlyPremiums($programs, $apply);
+        $this->employerOnlyPremiums($tenantId, $programs, $apply);
     }
 
     /**
@@ -192,7 +197,7 @@ class AlignTaxBasis extends Command
      *
      * @param  Collection<int, BpjsProgram>  $programs
      */
-    private function employerOnlyPremiums(Collection $programs, bool $apply): void
+    private function employerOnlyPremiums(?int $tenantId, Collection $programs, bool $apply): void
     {
         $wanted = array_filter([
             'JKK' => $this->option('jkk-rate'),
@@ -227,8 +232,14 @@ class AlignTaxBasis extends Command
                 continue;
             }
 
+            if ($tenantId === null) {
+                $this->warn("Program {$code} dilewati saat preview lintas tenant.");
+
+                continue;
+            }
+
             $program = BpjsProgram::firstOrCreate(
-                ['code' => $code],
+                ['tenant_id' => $tenantId, 'code' => $code],
                 [
                     'name' => 'BPJS '.$code,
                     'type' => strtolower($code),

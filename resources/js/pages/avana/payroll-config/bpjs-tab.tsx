@@ -9,7 +9,12 @@ import type { BpjsProgram, FlatRecord } from './types';
 const SECTION = SECTIONS.find((item) => item.key === 'bpjs') ?? SECTIONS[0];
 
 /** Program BPJS tab — table + create/edit modal + delete confirm. */
-export default function BpjsTab({ programs }: { programs: BpjsProgram[] }) {
+interface BpjsTabProps {
+    programs: BpjsProgram[];
+    canManage: boolean;
+}
+
+export default function BpjsTab({ programs, canManage }: BpjsTabProps) {
     const [editing, setEditing] = useState<FlatRecord | null>(null);
     const [modalOpen, setModalOpen] = useState(false);
     const [confirm, setConfirm] = useState<FlatRecord | null>(null);
@@ -54,6 +59,7 @@ export default function BpjsTab({ programs }: { programs: BpjsProgram[] }) {
             <SectionTable
                 section={SECTION}
                 rows={rows}
+                canManage={canManage}
                 onCreate={openCreate}
                 onEdit={openEdit}
                 onDelete={requestDelete}

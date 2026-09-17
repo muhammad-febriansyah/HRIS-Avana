@@ -1644,15 +1644,18 @@ final class AvanaDemoSeeder extends Seeder
             ['code' => 'JKK', 'name' => 'BPJS JKK', 'type' => 'jkk', 'emp' => 0.0, 'co' => 0.0024],
             ['code' => 'JKM', 'name' => 'BPJS JKM', 'type' => 'jkm', 'emp' => 0.0, 'co' => 0.003],
         ];
-        foreach ($programs as $p) {
-            $program = BpjsProgram::firstOrCreate(['code' => $p['code']], ['name' => $p['name'], 'type' => $p['type'], 'is_active' => true]);
-            $program->rates()->firstOrCreate(
-                ['effective_start_date' => '2026-01-01'],
-                ['employee_rate' => $p['emp'], 'company_rate' => $p['co'], 'is_active' => true],
-            );
-        }
-
         foreach (Tenant::pluck('id') as $tenantId) {
+            foreach ($programs as $p) {
+                $program = BpjsProgram::firstOrCreate(
+                    ['tenant_id' => $tenantId, 'code' => $p['code']],
+                    ['name' => $p['name'], 'type' => $p['type'], 'is_active' => true],
+                );
+                $program->rates()->firstOrCreate(
+                    ['effective_start_date' => '2026-01-01'],
+                    ['employee_rate' => $p['emp'], 'company_rate' => $p['co'], 'is_active' => true],
+                );
+            }
+
             $this->seedTaxRates((int) $tenantId);
         }
     }

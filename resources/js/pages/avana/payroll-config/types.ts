@@ -2,8 +2,7 @@
  * Shared types, constants and pure helpers for the AvanaHR payroll-config
  * module. These mirror the `PayrollConfigController@index` payload.
  *
- * NOTE: bpjs_programs / bpjs_rates / pph21_ter_rates are GLOBAL master tables
- * (no tenant scope). Only the profile counts are tenant-scoped.
+ * BPJS programs and rates are tenant-scoped, just like the tax configuration.
  */
 
 import { rp } from '@/lib/avana';
@@ -92,6 +91,7 @@ export interface PayrollConfigProps {
         bpjs_jp_enabled: boolean;
         require_salary_approval: boolean;
     };
+    canManageBpjs: boolean;
     features: PayrollConfigFeatures;
 }
 

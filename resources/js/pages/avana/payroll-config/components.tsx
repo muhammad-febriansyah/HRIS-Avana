@@ -178,6 +178,7 @@ export function renderCell(row: FlatRecord, column: ColumnDef): ReactNode {
 interface SectionTableProps {
     section: SectionDef;
     rows: FlatRecord[];
+    canManage: boolean;
     onCreate: () => void;
     onEdit: (row: FlatRecord) => void;
     onDelete: (row: FlatRecord) => void;
@@ -186,6 +187,7 @@ interface SectionTableProps {
 export function SectionTable({
     section,
     rows,
+    canManage,
     onCreate,
     onEdit,
     onDelete,
@@ -223,10 +225,25 @@ export function SectionTable({
                         {rows.length.toLocaleString('id-ID')} data terdaftar
                     </div>
                 </div>
-                <button onClick={onCreate} style={btnP}>
-                    <AIcon name="plus" size={16} color="#fff" />
-                    {section.addLabel}
-                </button>
+                {canManage ? (
+                    <button onClick={onCreate} style={btnP}>
+                        <AIcon name="plus" size={16} color="#fff" />
+                        {section.addLabel}
+                    </button>
+                ) : (
+                    <span
+                        style={{
+                            fontSize: 12,
+                            color: C.muted,
+                            background: C.surface,
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 7,
+                            padding: '7px 10px',
+                        }}
+                    >
+                        Hanya administrator payroll berizin yang dapat mengubah
+                    </span>
+                )}
             </div>
 
             <div style={{ overflowX: 'auto' }}>
@@ -244,15 +261,17 @@ export function SectionTable({
                                     {column.header}
                                 </th>
                             ))}
-                            <th
-                                style={{
-                                    ...thCell,
-                                    textAlign: 'right',
-                                    padding: '12px 18px',
-                                }}
-                            >
-                                Aksi
-                            </th>
+                            {canManage && (
+                                <th
+                                    style={{
+                                        ...thCell,
+                                        textAlign: 'right',
+                                        padding: '12px 18px',
+                                    }}
+                                >
+                                    Aksi
+                                </th>
+                            )}
                         </tr>
                     </thead>
                     <tbody>
@@ -263,7 +282,10 @@ export function SectionTable({
                                 }}
                             >
                                 <td
-                                    colSpan={section.columns.length + 1}
+                                    colSpan={
+                                        section.columns.length +
+                                        (canManage ? 1 : 0)
+                                    }
                                     style={{
                                         padding: '48px 18px',
                                         textAlign: 'center',
@@ -308,34 +330,36 @@ export function SectionTable({
                                         {renderCell(row, column)}
                                     </td>
                                 ))}
-                                <td
-                                    style={{
-                                        padding: '13px 18px',
-                                        textAlign: 'right',
-                                    }}
-                                >
-                                    <div
+                                {canManage && (
+                                    <td
                                         style={{
-                                            display: 'inline-flex',
-                                            gap: 6,
-                                            justifyContent: 'flex-end',
-                                            flexWrap: 'wrap',
+                                            padding: '13px 18px',
+                                            textAlign: 'right',
                                         }}
                                     >
-                                        <ActionBtn
-                                            icon="pencil"
-                                            label="Ubah"
-                                            variant="success"
-                                            onClick={() => onEdit(row)}
-                                        />
-                                        <ActionBtn
-                                            icon="trash-2"
-                                            label="Hapus"
-                                            variant="danger"
-                                            onClick={() => onDelete(row)}
-                                        />
-                                    </div>
-                                </td>
+                                        <div
+                                            style={{
+                                                display: 'inline-flex',
+                                                gap: 6,
+                                                justifyContent: 'flex-end',
+                                                flexWrap: 'wrap',
+                                            }}
+                                        >
+                                            <ActionBtn
+                                                icon="pencil"
+                                                label="Ubah"
+                                                variant="success"
+                                                onClick={() => onEdit(row)}
+                                            />
+                                            <ActionBtn
+                                                icon="trash-2"
+                                                label="Hapus"
+                                                variant="danger"
+                                                onClick={() => onDelete(row)}
+                                            />
+                                        </div>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>

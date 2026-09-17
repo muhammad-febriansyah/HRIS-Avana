@@ -3648,7 +3648,8 @@ class PayrollController extends Controller
         $lines = [];
         $jpEnabled = (bool) (Tenant::find($tenantId)?->bpjs_jp_enabled ?? true);
 
-        $programs = BpjsProgram::where('is_active', true)
+        $programs = BpjsProgram::forTenant($tenantId)
+            ->where('is_active', true)
             ->with(['rates' => fn ($query) => $query
                 ->where('is_active', true)
                 ->where(fn ($q) => $q->whereNull('effective_start_date')->orWhereDate('effective_start_date', '<=', $date))

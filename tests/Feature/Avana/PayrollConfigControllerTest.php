@@ -120,11 +120,41 @@ it('renders the payroll config screen with the expected props', function (): voi
             ->has('ptkpRates')
             ->has('pkpRates')
             ->has('profileStats.bpjs_profiles')
-            ->has('profileStats.tax_profiles'));
+            ->has('profileStats.tax_profiles')
+            ->where('canManageBpjs', true));
 });
 
-it('updates the tenant JP setting without changing the global JP program', function (): void {
-    $jp = BpjsProgram::where('code', 'JP')->firstOrFail();
+it('exposes BPJS management to a tenant payroll administrator', function (): void {
+    actingAs($this->admin)
+        ->get('spec-payroll-config')
+        ->assertInertia(fn (Assert $page) => $page->where('canManageBpjs', true));
+
+    actingAs($this->superadmin)
+        ->get('spec-payroll-config')
+        ->assertInertia(fn (Assert $page) => $page->where('canManageBpjs', true));
+});
+
+it('allows a tenant HR administrator to manage BPJS without action permissions', function (): void {
+    $role = $this->admin->roles()->where('code', 'admin_tenant_hr')->firstOrFail();
+    $role->permissions()->detach(
+        Permission::whereIn('code', ['payroll.create', 'payroll.update', 'payroll.archive'])->pluck('id'),
+    );
+
+    actingAs($this->admin)
+        ->post('spec-payroll-config/bpjs', [
+            'code' => 'JKP-ROLE',
+            'name' => 'BPJS JKP Role',
+            'type' => 'jkp',
+            'employee_rate' => 0,
+            'company_rate' => 0.0024,
+            'effective_start_date' => '2026-01-01',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+});
+
+it('updates the tenant JP setting without changing its BPJS program', function (): void {
+    $jp = BpjsProgram::where('tenant_id', $this->tenant->id)->where('code', 'JP')->firstOrFail();
 
     actingAs($this->admin)
         ->put('spec-payroll-config/settings', [
@@ -141,7 +171,7 @@ it('updates the tenant JP setting without changing the global JP program', funct
 });
 
 it('creates a BPJS program together with its primary rate', function (): void {
-    actingAs($this->superadmin)
+    actingAs($this->admin)
         ->post('spec-payroll-config/bpjs', [
             'code' => 'JKP',
             'name' => 'BPJS JKP',
@@ -157,7 +187,7 @@ it('creates a BPJS program together with its primary rate', function (): void {
         ->assertRedirect()
         ->assertSessionHas('success');
 
-    $program = BpjsProgram::where('code', 'JKP')->firstOrFail();
+    $program = BpjsProgram::where('tenant_id', $this->tenant->id)->where('code', 'JKP')->firstOrFail();
     expect($program->name)->toBe('BPJS JKP');
     expect($program->is_active)->toBeTrue();
 
@@ -168,7 +198,7 @@ it('creates a BPJS program together with its primary rate', function (): void {
 });
 
 it('validates required fields on BPJS store', function (): void {
-    actingAs($this->superadmin)
+    actingAs($this->admin)
         ->post('spec-payroll-config/bpjs', [
             'code' => '',
             'name' => '',
@@ -180,7 +210,7 @@ it('validates required fields on BPJS store', function (): void {
 });
 
 it('rejects a duplicate BPJS code', function (): void {
-    actingAs($this->superadmin)
+    actingAs($this->admin)
         ->post('spec-payroll-config/bpjs', [
             'code' => 'KESEHATAN',
             'name' => 'Duplikat',
@@ -193,9 +223,9 @@ it('rejects a duplicate BPJS code', function (): void {
 });
 
 it('updates a BPJS program and its latest rate', function (): void {
-    $program = BpjsProgram::where('code', 'KESEHATAN')->firstOrFail();
+    $program = BpjsProgram::where('tenant_id', $this->tenant->id)->where('code', 'KESEHATAN')->firstOrFail();
 
-    actingAs($this->superadmin)
+    actingAs($this->admin)
         ->put('spec-payroll-config/bpjs/'.$program->id, [
             'code' => 'KESEHATAN',
             'name' => 'BPJS Kesehatan Baru',
@@ -218,9 +248,9 @@ it('updates a BPJS program and its latest rate', function (): void {
 });
 
 it('soft deletes a BPJS program', function (): void {
-    $program = BpjsProgram::where('code', 'JP')->firstOrFail();
+    $program = BpjsProgram::where('tenant_id', $this->tenant->id)->where('code', 'JP')->firstOrFail();
 
-    actingAs($this->superadmin)
+    actingAs($this->admin)
         ->delete('spec-payroll-config/bpjs/'.$program->id)
         ->assertRedirect()
         ->assertSessionHas('success');
@@ -301,13 +331,23 @@ it('forbids a plain employee from creating a BPJS program', function (): void {
         ])
         ->assertForbidden();
 
-    expect(BpjsProgram::where('code', 'JKP')->exists())->toBeFalse();
+    expect(BpjsProgram::where('tenant_id', $this->tenant->id)->where('code', 'JKP')->exists())->toBeFalse();
 });
 
-it('lets an HR admin view but not edit the global statutory config', function (): void {
-    // BPJS/PPh21 tables are global (shared across tenants): a tenant admin can
-    // read them but only a super admin may change them.
+it('lets an HR admin create BPJS config only inside their tenant', function (): void {
     actingAs($this->admin)->get('spec-payroll-config')->assertOk();
+
+    $otherTenant = Tenant::create([
+        'name' => 'Tenant Lain',
+        'slug' => 'tenant-lain',
+    ]);
+    BpjsProgram::create([
+        'tenant_id' => $otherTenant->id,
+        'code' => 'JKP',
+        'name' => 'JKP Tenant Lain',
+        'type' => 'jkp',
+        'is_active' => true,
+    ]);
 
     actingAs($this->admin)
         ->post('spec-payroll-config/bpjs', [
@@ -318,7 +358,8 @@ it('lets an HR admin view but not edit the global statutory config', function ()
             'company_rate' => 0.003,
             'effective_start_date' => '2026-01-01',
         ])
-        ->assertForbidden();
+        ->assertRedirect()
+        ->assertSessionHas('success');
 
     // Tarif PTKP/PKP are tenant-scoped config: a tenant HR admin MAY manage them.
     actingAs($this->admin)
@@ -329,12 +370,43 @@ it('lets an HR admin view but not edit the global statutory config', function ()
         ])
         ->assertRedirect();
 
-    expect(BpjsProgram::where('code', 'JKP')->exists())->toBeFalse();
+    expect(BpjsProgram::where('tenant_id', $this->tenant->id)->where('code', 'JKP')->exists())->toBeTrue()
+        ->and(BpjsProgram::where('tenant_id', $otherTenant->id)->where('code', 'JKP')->value('name'))
+        ->toBe('JKP Tenant Lain');
+});
+
+it('cannot update a BPJS program owned by another tenant', function (): void {
+    $otherTenant = Tenant::create([
+        'name' => 'Tenant Lain',
+        'slug' => 'tenant-lain-update',
+    ]);
+    $program = BpjsProgram::create([
+        'tenant_id' => $otherTenant->id,
+        'code' => 'JKP',
+        'name' => 'JKP Tenant Lain',
+        'type' => 'jkp',
+        'is_active' => true,
+    ]);
+
+    actingAs($this->admin)
+        ->put('spec-payroll-config/bpjs/'.$program->id, [
+            'code' => 'JKP',
+            'name' => 'Tidak Boleh Diubah',
+            'type' => 'jkp',
+            'is_active' => true,
+            'employee_rate' => 0,
+            'company_rate' => 0.003,
+            'effective_start_date' => '2026-01-01',
+        ])
+        ->assertNotFound();
+
+    expect($program->fresh()->name)->toBe('JKP Tenant Lain');
 });
 
 it('maps each config action to its own permission module', function (): void {
     // A role scoped to only pph21.create: may add a PTKP tariff, but cannot open
-    // the config landing (that needs payroll.view) nor touch BPJS (super admin).
+    // the config landing (that needs payroll.view) nor touch BPJS without payroll
+    // permissions.
     $role = Role::create([
         'tenant_id' => $this->tenant->id,
         'code' => 'tax-editor',

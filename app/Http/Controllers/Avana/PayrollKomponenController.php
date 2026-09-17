@@ -130,7 +130,9 @@ class PayrollKomponenController extends Controller
                 ])->all(),
             ]);
 
-        $taxBpjs = BpjsProgram::orderBy('name')->get(['id', 'code', 'name', 'type', 'is_active'])
+        $taxBpjs = BpjsProgram::forTenant($tenantId)
+            ->orderBy('name')
+            ->get(['id', 'code', 'name', 'type', 'is_active'])
             ->map(fn (BpjsProgram $p): array => [
                 'id' => $p->id,
                 'code' => $p->code,

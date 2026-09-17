@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\BpjsProgram;
 use App\Models\Company;
 use App\Models\DayCalcMethod;
 use App\Models\Feature;
@@ -101,6 +102,11 @@ class TenantProvisioner
                 'label' => 'menu aplikasi mobile',
                 'present' => fn (Tenant $tenant): bool => MobileMenuItem::forTenant($tenant->id)->exists(),
                 'repair' => fn (Tenant $tenant) => MobileMenu::seedDefaultsFor($tenant->id),
+            ],
+            'bpjs_program' => [
+                'label' => 'program BPJS tenant',
+                'present' => fn (Tenant $tenant): bool => BpjsProgram::forTenant($tenant->id)->exists(),
+                'repair' => fn (Tenant $tenant) => $this->provisionBpjsPrograms($tenant),
             ],
             // Operational reference data payroll and the roster read before a
             // tenant can run either: without a Perhitungan Hari method every
@@ -211,6 +217,42 @@ class TenantProvisioner
             $tenant->features()->updateOrCreate(
                 ['feature_id' => $featureId],
                 ['is_enabled' => in_array((int) $featureId, $entitled, true)],
+            );
+        }
+    }
+
+    /**
+     * Give a new tenant the statutory BPJS programs as editable starting data.
+     * Existing rows are left untouched so a repair can never overwrite a
+     * company's own rates.
+     */
+    public function provisionBpjsPrograms(Tenant $tenant): void
+    {
+        $programs = [
+            ['code' => 'KESEHATAN', 'name' => 'BPJS Kesehatan', 'type' => 'kesehatan', 'employee_rate' => 0.01, 'company_rate' => 0.04],
+            ['code' => 'JHT', 'name' => 'BPJS JHT', 'type' => 'jht', 'employee_rate' => 0.02, 'company_rate' => 0.037],
+            ['code' => 'JP', 'name' => 'BPJS JP', 'type' => 'jp', 'employee_rate' => 0.01, 'company_rate' => 0.02],
+            ['code' => 'JKK', 'name' => 'BPJS JKK', 'type' => 'jkk', 'employee_rate' => 0.0, 'company_rate' => 0.0024],
+            ['code' => 'JKM', 'name' => 'BPJS JKM', 'type' => 'jkm', 'employee_rate' => 0.0, 'company_rate' => 0.003],
+        ];
+
+        foreach ($programs as $attributes) {
+            $program = BpjsProgram::firstOrCreate(
+                ['tenant_id' => $tenant->id, 'code' => $attributes['code']],
+                [
+                    'name' => $attributes['name'],
+                    'type' => $attributes['type'],
+                    'is_active' => true,
+                ],
+            );
+
+            $program->rates()->firstOrCreate(
+                ['effective_start_date' => '2026-01-01'],
+                [
+                    'employee_rate' => $attributes['employee_rate'],
+                    'company_rate' => $attributes['company_rate'],
+                    'is_active' => true,
+                ],
             );
         }
     }

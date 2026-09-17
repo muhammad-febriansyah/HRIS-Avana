@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\PkpRate;
 use App\Models\PtkpRate;
+use App\Models\Role;
 use App\Models\TaxProfile;
 use App\Models\User;
 use App\Support\FeatureGate;
@@ -21,12 +22,8 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Manages the global payroll statutory configuration: BPJS programs (with their
- * contribution rates) and PPh 21 TER tax brackets.
- *
- * NOTE: bpjs_programs, bpjs_rates and pph21_ter_rates are GLOBAL master tables —
- * they carry no tenant_id and are shared across every tenant. Only the profile
- * counts surfaced on the index are tenant-scoped.
+ * Manages tenant payroll configuration: BPJS programs (with their contribution
+ * rates) and tenant-scoped PPh 21 tax brackets.
  */
 class PayrollConfigController extends Controller
 {
@@ -50,9 +47,9 @@ class PayrollConfigController extends Controller
         // is nothing here for the tenant to configure.
         FeatureGate::ensureAny($request->user(), ['bpjs', 'pph21']);
 
-        $tenantId = $request->user()->tenant_id;
+        $tenantId = $this->tenantId($request);
 
-        $programs = BpjsProgram::query()
+        $programs = BpjsProgram::forTenant($tenantId)
             ->with(['rates' => fn ($query) => $query->orderByDesc('effective_start_date')->orderByDesc('id')])
             ->orderBy('name')
             ->get()
@@ -136,6 +133,7 @@ class PayrollConfigController extends Controller
                 'tax_includes_employer_bpjs' => (bool) ($request->user()->tenant?->tax_includes_employer_bpjs ?? true),
                 'bpjs_jp_enabled' => (bool) ($request->user()->tenant?->bpjs_jp_enabled ?? true),
             ],
+            'canManageBpjs' => $this->canManageBpjs($request),
             'features' => FeatureGate::map($request->user(), ['bpjs', 'pph21']),
         ]);
     }
@@ -264,14 +262,17 @@ class PayrollConfigController extends Controller
      */
     public function storeBpjsProgram(Request $request): RedirectResponse
     {
-        $this->ensureSuperAdmin($request);
+        $this->ensureBpjsCan($request, 'create');
+
+        $tenantId = $this->tenantId($request);
 
         $validated = $request->validate(
-            $this->bpjsProgramRules(),
+            $this->bpjsProgramRules($tenantId),
             $this->messages(),
         );
 
         $program = BpjsProgram::create([
+            'tenant_id' => $tenantId,
             'code' => $validated['code'],
             'name' => $validated['name'],
             'type' => $validated['type'],
@@ -289,10 +290,12 @@ class PayrollConfigController extends Controller
      */
     public function updateBpjsProgram(Request $request, BpjsProgram $program): RedirectResponse
     {
-        $this->ensureSuperAdmin($request);
+        $this->ensureBpjsCan($request, 'update');
+        $tenantId = $this->tenantId($request);
+        $this->ensureProgramBelongsToTenant($program, $tenantId);
 
         $validated = $request->validate(
-            $this->bpjsProgramRules($program->id),
+            $this->bpjsProgramRules($tenantId, $program->id),
             $this->messages(),
         );
 
@@ -325,7 +328,8 @@ class PayrollConfigController extends Controller
      */
     public function destroyBpjsProgram(Request $request, BpjsProgram $program): RedirectResponse
     {
-        $this->ensureSuperAdmin($request);
+        $this->ensureBpjsCan($request, 'archive');
+        $this->ensureProgramBelongsToTenant($program, $this->tenantId($request));
 
         $program->delete();
 
@@ -418,9 +422,10 @@ class PayrollConfigController extends Controller
      *
      * @return array<string, array<int, mixed>>
      */
-    private function bpjsProgramRules(?int $programId = null): array
+    private function bpjsProgramRules(int $tenantId, ?int $programId = null): array
     {
-        $code = Rule::unique('bpjs_programs', 'code');
+        $code = Rule::unique('bpjs_programs', 'code')
+            ->where(fn ($query) => $query->where('tenant_id', $tenantId));
 
         if ($programId !== null) {
             $code->ignore($programId);
@@ -512,18 +517,50 @@ class PayrollConfigController extends Controller
         abort_unless($user->hasPermissionTo($module.'.'.$action), 403);
     }
 
-    /**
-     * Abort with 403 unless the user is a super admin. BPJS programs/rates and
-     * PPh 21 TER rates are GLOBAL (no tenant_id) statutory config shared by every
-     * tenant, so only a super admin may change them — a tenant admin editing them
-     * would alter the rates for all tenants.
-     */
-    private function ensureSuperAdmin(Request $request): void
+    private function tenantId(Request $request): int
+    {
+        abort_if($request->user()->tenant_id === null, 403);
+
+        return (int) $request->user()->tenant_id;
+    }
+
+    private function ensureProgramBelongsToTenant(BpjsProgram $program, int $tenantId): void
+    {
+        abort_unless((int) $program->tenant_id === $tenantId, 404);
+    }
+
+    private function canManageBpjs(Request $request): bool
     {
         /** @var User $user */
         $user = $request->user();
+
+        return $this->canManageBpjsAction($user, 'create')
+            || $this->canManageBpjsAction($user, 'update')
+            || $this->canManageBpjsAction($user, 'archive');
+    }
+
+    private function ensureBpjsCan(Request $request, string $action): void
+    {
+        $user = $request->user();
+
+        FeatureGate::ensure($user, 'bpjs');
+
+        abort_unless($this->canManageBpjsAction($user, $action), 403);
+    }
+
+    private function canManageBpjsAction(User $user, string $action): bool
+    {
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
         $user->loadMissing('roles');
 
-        abort_unless($user->roles->contains(fn ($role): bool => $role->code === 'super_admin'), 403);
+        $hasTenantManagerRole = $user->roles->contains(
+            fn (Role $role): bool => $role->code === 'admin_tenant_hr'
+                && (int) $role->tenant_id === (int) $user->tenant_id,
+        );
+
+        return $hasTenantManagerRole || $user->hasPermissionTo('payroll.'.$action);
     }
 }
