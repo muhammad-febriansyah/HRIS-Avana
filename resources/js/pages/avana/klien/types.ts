@@ -17,6 +17,20 @@ export interface TenantTokenStanding {
     used: number;
 }
 
+export interface TenantMultiCompany {
+    enabled: boolean;
+    company_limit: number;
+    used: number;
+    remaining: number;
+    note: string | null;
+    companies: {
+        id: number;
+        name: string;
+        status: string;
+        is_primary: boolean;
+    }[];
+}
+
 /** A single tenant row as serialized by `TenantController@index`. */
 export interface TenantRow {
     id: number;
@@ -36,6 +50,7 @@ export interface TenantRow {
     start_date: string | null;
     end_date: string | null;
     feature_codes: string[];
+    multi_company: TenantMultiCompany;
     ai_token: TenantTokenStanding;
 }
 

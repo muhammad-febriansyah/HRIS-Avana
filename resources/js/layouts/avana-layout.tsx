@@ -2,6 +2,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import type { CSSProperties } from 'react';
+import CompanySwitcherController from '@/actions/App/Http/Controllers/Avana/CompanySwitcherController';
 import WebsiteSettingController from '@/actions/App/Http/Controllers/Avana/WebsiteSettingController';
 import { GlobalSearch } from '@/components/avana-ui/global-search';
 import { NotificationSheet } from '@/components/avana-ui/notification-sheet';
@@ -399,6 +400,12 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                 company_name?: string | null;
                 logo_url?: string | null;
             };
+            companies?: {
+                id: number;
+                name: string;
+                company_name?: string | null;
+                is_current: boolean;
+            }[];
         };
         nav?: NavGroup[];
         theme?: Partial<ThemeColors>;
@@ -426,6 +433,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
           ? page.props.nav
           : NAV;
     const sav = page.props.superAdminView;
+    const companies = page.props.auth?.companies ?? [];
 
     // Support contact: DB-driven (website settings) with sensible fallbacks.
     const contact = page.props.website?.contact;
@@ -437,6 +445,12 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
         router.post(
             '/avana/view-tenant',
             { tenant_id: id },
+            { preserveScroll: false },
+        );
+    const switchCompany = (id: string) =>
+        router.post(
+            CompanySwitcherController.store().url,
+            { tenant_id: id ? Number(id) : 0 },
             { preserveScroll: false },
         );
     const userName = user?.name ?? 'Rina Anggraeni';
@@ -572,7 +586,12 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                 </div>
 
                 <nav
-                    style={{ flex: 1, overflowY: 'auto', padding: '14px 12px' }}
+                    style={{
+                        flex: 1,
+                        minHeight: 0,
+                        overflowY: 'auto',
+                        padding: '14px 12px',
+                    }}
                 >
                     {navGroups.map((grp, gi) => (
                         <div key={gi} style={{ marginBottom: 6 }}>
@@ -934,6 +953,7 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                             <SearchableSelect
                                 value={sav.view_tenant_id}
                                 onChange={switchTenant}
+                                ariaLabel="Tenant yang sedang dilihat"
                                 options={[
                                     { value: '', label: '— Tenant Saya —' },
                                     ...sav.tenants.map((t) => ({
@@ -944,6 +964,42 @@ export default function AvanaLayout({ children }: PropsWithChildren) {
                                 placeholder="Lihat tenant…"
                                 searchPlaceholder="Cari tenant…"
                                 style={{ width: 200 }}
+                            />
+                        </div>
+                    )}
+                    {!page.props.auth?.isSuperAdmin && companies.length > 1 && (
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '4px 4px 4px 10px',
+                                border: `1px solid ${C.border}`,
+                                borderRadius: 9,
+                                background: '#fff',
+                            }}
+                            title="Pilih perusahaan aktif"
+                        >
+                            <AIcon
+                                name="building-2"
+                                size={15}
+                                color={C.faint}
+                            />
+                            <SearchableSelect
+                                value={String(
+                                    companies.find(
+                                        (company) => company.is_current,
+                                    )?.id ?? '',
+                                )}
+                                onChange={switchCompany}
+                                ariaLabel="Perusahaan aktif"
+                                options={companies.map((company) => ({
+                                    value: String(company.id),
+                                    label: company.company_name || company.name,
+                                }))}
+                                placeholder="Pilih perusahaan…"
+                                searchPlaceholder="Cari perusahaan…"
+                                style={{ width: 220 }}
                             />
                         </div>
                     )}

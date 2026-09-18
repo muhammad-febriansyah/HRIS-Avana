@@ -4,7 +4,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import TenantController from '@/actions/App/Http/Controllers/Avana/TenantController';
 import { AIcon, ActionBtn, btnP, C, card, thCell } from '@/lib/avana';
-import { ConfirmModal, StatusBadge, TokenCell, Usage } from './components';
+import {
+    ConfirmModal,
+    MultiCompanyModal,
+    StatusBadge,
+    TokenCell,
+    Usage,
+} from './components';
 import { STATUS_OPTIONS } from './types';
 import type { FlashProps, KlienFilters, TenantRow } from './types';
 import type { FeatureOption, PackageOption, PaginationMeta } from './types';
@@ -38,11 +44,17 @@ export default function KlienIndex({
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [featureTenantId, setFeatureTenantId] = useState<number | null>(null);
+    const [multiCompanyTenantId, setMultiCompanyTenantId] = useState<
+        number | null
+    >(null);
     const [confirm, setConfirm] = useState<TenantRow | null>(null);
     const isFirstSearch = useRef(true);
 
     const featureTenant =
         tenants.data.find((tenant) => tenant.id === featureTenantId) ?? null;
+    const multiCompanyTenant =
+        tenants.data.find((tenant) => tenant.id === multiCompanyTenantId) ??
+        null;
 
     // Features grouped by section (in server order) for the Kelola Fitur modal.
     const groupedFeatures = useMemo(() => {
@@ -475,6 +487,17 @@ export default function KlienIndex({
                                                     }
                                                 />
                                                 <ActionBtn
+                                                    icon="puzzle"
+                                                    label="Multi Company"
+                                                    variant="primary"
+                                                    title="Kelola add-on Multi Company"
+                                                    onClick={() =>
+                                                        setMultiCompanyTenantId(
+                                                            tenant.id,
+                                                        )
+                                                    }
+                                                />
+                                                <ActionBtn
                                                     icon="pencil"
                                                     label="Ubah"
                                                     variant="success"
@@ -885,6 +908,14 @@ export default function KlienIndex({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Multi Company modal */}
+            {multiCompanyTenant && (
+                <MultiCompanyModal
+                    tenant={multiCompanyTenant}
+                    onClose={() => setMultiCompanyTenantId(null)}
+                />
             )}
 
             {/* Confirm delete modal */}

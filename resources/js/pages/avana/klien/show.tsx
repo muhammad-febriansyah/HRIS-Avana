@@ -1,6 +1,7 @@
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
+import TenantController from '@/actions/App/Http/Controllers/Avana/TenantController';
 import { AIcon, btnOut, btnP, btnSave, C, card, rp } from '@/lib/avana';
 import {
     FieldError,
@@ -35,6 +36,20 @@ type TenantData = {
     start_date: string | null;
     end_date: string | null;
     created_at: string | null;
+};
+
+type MultiCompanyDetail = {
+    enabled: boolean;
+    company_limit: number;
+    used: number;
+    remaining: number;
+    note: string | null;
+    companies: {
+        id: number;
+        name: string;
+        status: string;
+        is_primary: boolean;
+    }[];
 };
 
 type Invoice = {
@@ -129,6 +144,7 @@ type ShowProps = {
             join_date: string | null;
         }[];
     };
+    multiCompany: MultiCompanyDetail;
 };
 
 const STATUS_META: Record<
@@ -197,6 +213,7 @@ const TABS = [
     { id: 'tagihan', label: 'Langganan & Tagihan', icon: 'receipt' },
     { id: 'token', label: 'Token AI', icon: 'sparkles' },
     { id: 'fitur', label: 'Fitur Aktif', icon: 'layers' },
+    { id: 'addon', label: 'Add-on', icon: 'puzzle' },
     { id: 'organisasi', label: 'Organisasi', icon: 'building-2' },
 ];
 
@@ -779,6 +796,210 @@ function KeyValue({ label, value }: { label: string; value: ReactNode }) {
     );
 }
 
+function MultiCompanyTab({
+    tenantId,
+    detail,
+}: {
+    tenantId: number;
+    detail: MultiCompanyDetail;
+}) {
+    const form = useForm({
+        enabled: detail.enabled,
+        company_limit: detail.company_limit,
+        note: detail.note ?? '',
+    });
+
+    const submit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        form.put(TenantController.updateMultiCompanyAddon(tenantId).url, {
+            preserveScroll: true,
+        });
+    };
+
+    return (
+        <div style={{ display: 'grid', gap: 16 }}>
+            <SectionCard
+                title="Add-on Multi Company"
+                action={
+                    <span
+                        style={{
+                            color: detail.enabled ? C.green : C.muted,
+                            fontSize: 12,
+                            fontWeight: 600,
+                        }}
+                    >
+                        {detail.enabled ? 'Aktif' : 'Tidak aktif'}
+                    </span>
+                }
+            >
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                        gap: 12,
+                        marginBottom: 20,
+                    }}
+                >
+                    <KeyValue
+                        label="Perusahaan terpakai"
+                        value={`${detail.used} / ${detail.company_limit}`}
+                    />
+                    <KeyValue
+                        label="Slot tersedia"
+                        value={String(detail.remaining)}
+                    />
+                </div>
+
+                <form
+                    onSubmit={submit}
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 14,
+                    }}
+                >
+                    <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Status add-on</span>
+                        <span
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                height: 40,
+                                fontSize: 13,
+                                color: C.text,
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={form.data.enabled}
+                                onChange={(event) =>
+                                    form.setData(
+                                        'enabled',
+                                        event.target.checked,
+                                    )
+                                }
+                            />
+                            Aktifkan Multi Company
+                        </span>
+                    </label>
+                    <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Maksimal perusahaan</span>
+                        <input
+                            type="number"
+                            min={1}
+                            max={1000}
+                            value={form.data.company_limit}
+                            onChange={(event) =>
+                                form.setData(
+                                    'company_limit',
+                                    Number(event.target.value),
+                                )
+                            }
+                            style={withError(
+                                inputStyle,
+                                !!form.errors.company_limit,
+                            )}
+                        />
+                        <FieldError message={form.errors.company_limit} />
+                    </label>
+                    <label
+                        style={{
+                            display: 'grid',
+                            gap: 6,
+                            gridColumn: '1 / -1',
+                        }}
+                    >
+                        <span style={fieldLabelStyle}>Catatan</span>
+                        <input
+                            value={form.data.note}
+                            onChange={(event) =>
+                                form.setData('note', event.target.value)
+                            }
+                            style={withError(inputStyle, !!form.errors.note)}
+                            placeholder="Contoh: Add-on disetujui sampai akhir tahun"
+                        />
+                        <FieldError message={form.errors.note} />
+                    </label>
+                    <div style={{ gridColumn: '1 / -1', textAlign: 'right' }}>
+                        <button
+                            type="submit"
+                            disabled={form.processing}
+                            style={{
+                                ...btnSave,
+                                opacity: form.processing ? 0.7 : 1,
+                            }}
+                        >
+                            <AIcon name="save" size={15} color="#fff" />
+                            Simpan Add-on
+                        </button>
+                    </div>
+                </form>
+            </SectionCard>
+
+            <SectionCard title="Perusahaan dalam grup">
+                {detail.companies.length === 0 ? (
+                    <div style={{ color: C.faint, fontSize: 13 }}>
+                        Belum ada perusahaan.
+                    </div>
+                ) : (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                        {detail.companies.map((company) => (
+                            <div
+                                key={company.id}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 12,
+                                    padding: '10px 12px',
+                                    border: `1px solid ${C.line}`,
+                                    borderRadius: 9,
+                                }}
+                            >
+                                <div>
+                                    <div
+                                        style={{
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                            color: C.navy,
+                                        }}
+                                    >
+                                        {company.name}
+                                    </div>
+                                    {company.is_primary && (
+                                        <div
+                                            style={{
+                                                fontSize: 11.5,
+                                                color: C.faint,
+                                            }}
+                                        >
+                                            Perusahaan utama
+                                        </div>
+                                    )}
+                                </div>
+                                <span
+                                    style={{
+                                        fontSize: 12,
+                                        color:
+                                            company.status === 'active'
+                                                ? C.green
+                                                : C.muted,
+                                    }}
+                                >
+                                    {company.status === 'active'
+                                        ? 'Aktif'
+                                        : company.status}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </SectionCard>
+        </div>
+    );
+}
+
 export default function KlienShow({
     tenant,
     subscription,
@@ -789,12 +1010,21 @@ export default function KlienShow({
     branches,
     departments,
     employees,
+    multiCompany,
 }: ShowProps) {
     const { flash } = usePage<{ flash?: { credentials?: TenantCredentials } }>()
         .props;
     // Landing here straight after creating the client: show the credentials.
+    const requestedTab =
+        typeof window !== 'undefined'
+            ? new URLSearchParams(window.location.search).get('tab')
+            : null;
     const [activeTab, setActiveTab] = useState(
-        flash?.credentials ? 'admin' : 'ringkasan',
+        flash?.credentials
+            ? 'admin'
+            : requestedTab === 'addon'
+              ? 'addon'
+              : 'ringkasan',
     );
     const status = STATUS_META[tenant.status] ?? STATUS_META.inactive;
     const initials = tenant.name
@@ -2027,6 +2257,14 @@ export default function KlienShow({
                             </div>
                         )}
                     </SectionCard>
+                )}
+
+                {/* ---- Add-on ---- */}
+                {activeTab === 'addon' && (
+                    <MultiCompanyTab
+                        tenantId={tenant.id}
+                        detail={multiCompany}
+                    />
                 )}
 
                 {/* ---- Organisasi ---- */}

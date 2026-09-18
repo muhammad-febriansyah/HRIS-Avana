@@ -1,6 +1,12 @@
-import type { CSSProperties, ReactNode } from 'react';
-import { AIcon, btnDanger, btnOut, C } from '@/lib/avana';
-import type { TenantTokenStanding } from './types';
+import { useForm } from '@inertiajs/react';
+import type { CSSProperties, FormEvent, ReactNode } from 'react';
+import TenantController from '@/actions/App/Http/Controllers/Avana/TenantController';
+import { AIcon, btnDanger, btnOut, btnSave, C } from '@/lib/avana';
+import type {
+    TenantMultiCompany,
+    TenantRow,
+    TenantTokenStanding,
+} from './types';
 
 /* ---------- shared field styles (mirror benefit/components.tsx) ---------- */
 
@@ -273,6 +279,406 @@ export function ConfirmModal({
                         <AIcon name="trash-2" size={16} />
                         Hapus
                     </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+interface MultiCompanyModalProps {
+    tenant: TenantRow;
+    onClose: () => void;
+}
+
+/** Large quick-edit dialog for the platform-managed Multi Company add-on. */
+export function MultiCompanyModal({ tenant, onClose }: MultiCompanyModalProps) {
+    const detail: TenantMultiCompany = tenant.multi_company;
+    const form = useForm({
+        enabled: detail.enabled,
+        company_limit: detail.company_limit,
+        note: detail.note ?? '',
+    });
+
+    const submit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        form.put(TenantController.updateMultiCompanyAddon(tenant.id).url, {
+            preserveScroll: true,
+            onSuccess: onClose,
+        });
+    };
+
+    return (
+        <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="multi-company-modal-title"
+            style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 80,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 20,
+            }}
+        >
+            <button
+                type="button"
+                aria-label="Tutup modal Multi Company"
+                onClick={onClose}
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    border: 0,
+                    background: 'rgba(14,26,58,.45)',
+                    cursor: 'default',
+                }}
+            />
+            <div
+                style={{
+                    position: 'relative',
+                    width: '100%',
+                    maxWidth: 980,
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
+                    background: '#fff',
+                    borderRadius: 14,
+                    boxShadow: '0 20px 50px rgba(15,23,42,.25)',
+                    animation: 'toastIn .2s ease',
+                }}
+            >
+                <div
+                    style={{
+                        padding: '20px 26px',
+                        borderBottom: `1px solid ${C.line}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 16,
+                    }}
+                >
+                    <div>
+                        <div
+                            id="multi-company-modal-title"
+                            style={{
+                                fontSize: 18,
+                                fontWeight: 600,
+                                color: C.navy,
+                            }}
+                        >
+                            Add-on Multi Company
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 12.5,
+                                color: C.muted,
+                                marginTop: 3,
+                            }}
+                        >
+                            Kelola akses grup perusahaan untuk{' '}
+                            <strong style={{ color: C.text }}>
+                                {tenant.name}
+                            </strong>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        aria-label="Tutup"
+                        onClick={onClose}
+                        style={{
+                            width: 34,
+                            height: 34,
+                            flex: 'none',
+                            border: `1px solid ${C.border}`,
+                            background: '#fff',
+                            borderRadius: 8,
+                            cursor: 'pointer',
+                            color: C.muted,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <AIcon name="x" size={16} />
+                    </button>
+                </div>
+
+                <div
+                    style={{
+                        padding: 26,
+                        display: 'grid',
+                        gridTemplateColumns:
+                            'minmax(0, 1.2fr) minmax(280px, .8fr)',
+                        gap: 26,
+                    }}
+                >
+                    <form
+                        onSubmit={submit}
+                        style={{ display: 'grid', gap: 16 }}
+                    >
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: 14,
+                            }}
+                        >
+                            <label style={{ display: 'grid', gap: 7 }}>
+                                <span style={fieldLabelStyle}>
+                                    Status add-on
+                                </span>
+                                <span
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        minHeight: 42,
+                                        fontSize: 13,
+                                        color: C.text,
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={form.data.enabled}
+                                        onChange={(event) =>
+                                            form.setData(
+                                                'enabled',
+                                                event.target.checked,
+                                            )
+                                        }
+                                    />
+                                    Aktifkan Multi Company
+                                </span>
+                            </label>
+                            <label style={{ display: 'grid', gap: 7 }}>
+                                <span style={fieldLabelStyle}>
+                                    Maksimal perusahaan
+                                </span>
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={1000}
+                                    value={form.data.company_limit}
+                                    onChange={(event) =>
+                                        form.setData(
+                                            'company_limit',
+                                            Number(event.target.value),
+                                        )
+                                    }
+                                    style={withError(
+                                        inputStyle,
+                                        !!form.errors.company_limit,
+                                    )}
+                                />
+                                <FieldError
+                                    message={form.errors.company_limit}
+                                />
+                            </label>
+                        </div>
+                        <label style={{ display: 'grid', gap: 7 }}>
+                            <span style={fieldLabelStyle}>Catatan</span>
+                            <input
+                                value={form.data.note}
+                                onChange={(event) =>
+                                    form.setData('note', event.target.value)
+                                }
+                                style={withError(
+                                    inputStyle,
+                                    !!form.errors.note,
+                                )}
+                                placeholder="Contoh: Add-on disetujui oleh manajemen"
+                            />
+                            <FieldError message={form.errors.note} />
+                        </label>
+                        <div
+                            style={{
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                gap: 10,
+                                paddingTop: 6,
+                            }}
+                        >
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                disabled={form.processing}
+                                style={{
+                                    ...btnOut,
+                                    height: 42,
+                                    opacity: form.processing ? 0.6 : 1,
+                                }}
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={form.processing}
+                                style={{
+                                    ...btnSave,
+                                    height: 42,
+                                    opacity: form.processing ? 0.7 : 1,
+                                }}
+                            >
+                                <AIcon name="save" size={15} color="#fff" />
+                                Simpan Add-on
+                            </button>
+                        </div>
+                    </form>
+
+                    <div
+                        style={{
+                            border: `1px solid ${C.line}`,
+                            borderRadius: 12,
+                            padding: 18,
+                            background: '#FAFBFD',
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 10,
+                                marginBottom: 16,
+                            }}
+                        >
+                            <span
+                                style={{
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: C.navy,
+                                }}
+                            >
+                                Ringkasan kuota
+                            </span>
+                            <span
+                                style={{
+                                    color: detail.enabled ? C.green : C.muted,
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                }}
+                            >
+                                {detail.enabled ? 'Aktif' : 'Tidak aktif'}
+                            </span>
+                        </div>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: 12,
+                                marginBottom: 18,
+                            }}
+                        >
+                            <div>
+                                <div
+                                    style={{
+                                        ...fieldLabelStyle,
+                                        color: C.faint,
+                                    }}
+                                >
+                                    Terpakai
+                                </div>
+                                <div
+                                    style={{
+                                        fontSize: 20,
+                                        fontWeight: 600,
+                                        color: C.navy,
+                                    }}
+                                >
+                                    {detail.used} / {detail.company_limit}
+                                </div>
+                            </div>
+                            <div>
+                                <div
+                                    style={{
+                                        ...fieldLabelStyle,
+                                        color: C.faint,
+                                    }}
+                                >
+                                    Slot tersedia
+                                </div>
+                                <div
+                                    style={{
+                                        fontSize: 20,
+                                        fontWeight: 600,
+                                        color: C.navy,
+                                    }}
+                                >
+                                    {detail.remaining}
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                color: C.text,
+                                marginBottom: 9,
+                            }}
+                        >
+                            Perusahaan dalam grup
+                        </div>
+                        <div style={{ display: 'grid', gap: 8 }}>
+                            {detail.companies.map((company) => (
+                                <div
+                                    key={company.id}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 10,
+                                        padding: '9px 10px',
+                                        background: '#fff',
+                                        border: `1px solid ${C.line}`,
+                                        borderRadius: 8,
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            minWidth: 0,
+                                            fontSize: 12.5,
+                                            color: C.text,
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            {company.name}
+                                        </div>
+                                        {company.is_primary && (
+                                            <div
+                                                style={{
+                                                    fontSize: 11,
+                                                    color: C.faint,
+                                                    marginTop: 2,
+                                                }}
+                                            >
+                                                Perusahaan utama
+                                            </div>
+                                        )}
+                                    </div>
+                                    <span
+                                        style={{
+                                            flex: 'none',
+                                            fontSize: 11.5,
+                                            color:
+                                                company.status === 'active'
+                                                    ? C.green
+                                                    : C.muted,
+                                        }}
+                                    >
+                                        {company.status === 'active'
+                                            ? 'Aktif'
+                                            : company.status}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

@@ -15,6 +15,7 @@ interface SearchableSelectProps {
     disabled?: boolean;
     allowClear?: boolean;
     style?: React.CSSProperties;
+    ariaLabel?: string;
     /** Show the search box only past this many options (default 8). */
     searchThreshold?: number;
     multiple?: boolean;
@@ -34,6 +35,7 @@ export function SearchableSelect({
     disabled = false,
     allowClear = false,
     style,
+    ariaLabel,
     searchThreshold = 8,
     multiple = false,
 }: SearchableSelectProps) {
@@ -112,6 +114,7 @@ export function SearchableSelect({
         <div ref={boxRef} style={{ position: 'relative', width: '100%' }}>
             <button
                 type="button"
+                aria-label={ariaLabel}
                 disabled={disabled}
                 onClick={() => setOpen((o) => !o)}
                 style={{

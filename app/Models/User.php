@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Concerns\Auditable;
 use App\Support\Access;
+use App\Support\TenantContext;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -42,6 +43,20 @@ class User extends Authenticatable implements JWTSubject, PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
     use Auditable, HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
+
+    protected static function booted(): void
+    {
+        static::created(function (User $user): void {
+            if ($user->tenant_id === null) {
+                return;
+            }
+
+            TenantMembership::firstOrCreate(
+                ['user_id' => $user->id, 'tenant_id' => $user->tenant_id],
+                ['status' => 'active', 'is_default' => true],
+            );
+        });
+    }
 
     /**
      * Get the attributes that should be cast.
@@ -88,9 +103,25 @@ class User extends Authenticatable implements JWTSubject, PasskeyUser
         return $this->belongsTo(Tenant::class);
     }
 
+    public function tenantMemberships(): HasMany
+    {
+        return $this->hasMany(TenantMembership::class);
+    }
+
     public function roles(): BelongsToMany
     {
-        return $this->belongsToMany(Role::class, 'user_roles');
+        $relation = $this->belongsToMany(Role::class, 'user_roles');
+        $tenantId = app(TenantContext::class)->id();
+
+        if ($tenantId !== null) {
+            $relation->where(function (Builder $query) use ($tenantId): void {
+                $query
+                    ->whereNull('roles.tenant_id')
+                    ->orWhere('roles.tenant_id', $tenantId);
+            });
+        }
+
+        return $relation;
     }
 
     public function permissionOverrides(): HasMany

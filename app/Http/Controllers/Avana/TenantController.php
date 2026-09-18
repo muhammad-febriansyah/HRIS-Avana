@@ -14,10 +14,12 @@ use App\Models\Package;
 use App\Models\ReferralLead;
 use App\Models\Subscription;
 use App\Models\Tenant;
+use App\Models\TenantAddon;
 use App\Models\User;
 use App\Services\AiTokenService;
 use App\Services\TenantProvisioner;
 use App\Support\FeatureGroups;
+use App\Support\MultiCompanyEntitlement;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -56,7 +58,10 @@ class TenantController extends Controller
      */
     private const DEFAULT_TRIAL_DAYS = 14;
 
-    public function __construct(private readonly TenantProvisioner $provisioner) {}
+    public function __construct(
+        private readonly TenantProvisioner $provisioner,
+        private readonly MultiCompanyEntitlement $entitlement,
+    ) {}
 
     /**
      * Display a paginated, searchable list of all client tenants.
@@ -72,6 +77,8 @@ class TenantController extends Controller
             ->with([
                 'package:id,name,ai_token_quota',
                 'company:id,tenant_id,logo_path',
+                'tenantGroup.tenants:id,tenant_group_id,name,company_name,status,is_primary',
+                'tenantGroup.addons:id,tenant_group_id,code,company_limit,status,note',
                 'features' => fn ($query) => $query->where('is_enabled', true)->with('feature:id,code'),
             ])
             ->when($request->query('search'), function ($query, $search): void {
@@ -116,6 +123,7 @@ class TenantController extends Controller
                 ->filter()
                 ->values()
                 ->all(),
+            'multi_company' => $this->multiCompanyDetail($tenant),
             'ai_token' => $tokens[$tenant->id],
         ]);
 
@@ -284,7 +292,12 @@ class TenantController extends Controller
         $this->authorize('view', $tenant);
 
         $tenant->loadCount(['users' => fn ($query) => $query->whereDoesntHave('employee'), 'employees', 'branches']);
-        $tenant->load('package:id,name,code,price,billing_cycle', 'company:id,tenant_id,logo_path');
+        $tenant->load(
+            'package:id,name,code,price,billing_cycle',
+            'company:id,tenant_id,logo_path',
+            'tenantGroup.tenants:id,tenant_group_id,name,company_name,status,is_primary',
+            'tenantGroup.addons',
+        );
 
         $tenantId = $tenant->id;
 
@@ -407,7 +420,78 @@ class TenantController extends Controller
             ],
             'admins' => $this->adminAccounts($tenant),
             'aiToken' => $this->aiTokenDetail($tenant),
+            'multiCompany' => $this->multiCompanyDetail($tenant),
         ]);
+    }
+
+    /**
+     * Update the platform-managed Multi Company entitlement for a tenant group.
+     */
+    public function updateMultiCompanyAddon(Request $request, Tenant $tenant): RedirectResponse
+    {
+        $this->authorize('update', $tenant);
+
+        $tenant->loadMissing('tenantGroup');
+        $group = $tenant->tenantGroup;
+
+        abort_if($group === null, 422, 'Tenant belum memiliki grup perusahaan.');
+
+        $validated = $request->validate([
+            'enabled' => ['required', 'boolean'],
+            'company_limit' => ['required', 'integer', 'min:1', 'max:1000'],
+            'note' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $used = $this->entitlement->usedCompanies($group);
+
+        if ($validated['enabled'] && $validated['company_limit'] < $used) {
+            return back()->withErrors([
+                'company_limit' => "Kuota tidak boleh lebih kecil dari {$used} perusahaan yang sudah ada.",
+            ]);
+        }
+
+        TenantAddon::updateOrCreate(
+            ['tenant_group_id' => $group->id, 'code' => TenantAddon::MULTI_COMPANY],
+            [
+                'company_limit' => $validated['company_limit'],
+                'status' => $validated['enabled'] ? 'active' : 'inactive',
+                'note' => $validated['note'] ?? null,
+            ],
+        );
+
+        return back()->with('success', 'Add-on Multi Company diperbarui.');
+    }
+
+    /**
+     * @return array{enabled: bool, company_limit: int, used: int, remaining: int, note: string|null, companies: array<int, array{id: int, name: string, status: string, is_primary: bool}>}
+     */
+    private function multiCompanyDetail(Tenant $tenant): array
+    {
+        $group = $tenant->tenantGroup;
+        $addon = $group?->addons->firstWhere('code', TenantAddon::MULTI_COMPANY);
+        $limit = $addon?->status === 'active'
+            ? max(1, (int) ($addon->company_limit ?? 1))
+            : 1;
+        $companies = $group?->tenants
+            ->map(fn (Tenant $company): array => [
+                'id' => $company->id,
+                'name' => $company->company_name ?: $company->name,
+                'status' => $company->status,
+                'is_primary' => (bool) $company->is_primary,
+            ])
+            ->values() ?? collect();
+        $used = $group !== null
+            ? $companies->reject(fn (array $company): bool => $company['status'] === 'inactive')->count()
+            : 1;
+
+        return [
+            'enabled' => $addon?->status === 'active' && $limit > 1,
+            'company_limit' => $addon?->company_limit !== null ? (int) $addon->company_limit : 1,
+            'used' => $used,
+            'remaining' => max(0, $limit - $used),
+            'note' => $addon?->note,
+            'companies' => $companies->all(),
+        ];
     }
 
     /**

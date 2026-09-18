@@ -26,13 +26,40 @@ final class Tenant extends Model
             'tax_includes_employer_bpjs' => 'boolean',
             'bpjs_jp_enabled' => 'boolean',
             'requires_onboarding' => 'boolean',
+            'is_primary' => 'boolean',
             'theme' => 'array',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        self::created(function (Tenant $tenant): void {
+            if ($tenant->tenant_group_id !== null) {
+                return;
+            }
+
+            $group = TenantGroup::create([
+                'name' => $tenant->company_name ?: $tenant->name,
+                'status' => 'active',
+            ]);
+
+            $tenant->forceFill(['tenant_group_id' => $group->id])->saveQuietly();
+        });
     }
 
     public function package(): BelongsTo
     {
         return $this->belongsTo(Package::class);
+    }
+
+    public function tenantGroup(): BelongsTo
+    {
+        return $this->belongsTo(TenantGroup::class);
+    }
+
+    public function memberships(): HasMany
+    {
+        return $this->hasMany(TenantMembership::class);
     }
 
     /**

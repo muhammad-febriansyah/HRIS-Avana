@@ -3,6 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Models\Tenant;
+use App\Models\TenantMembership;
+use App\Support\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,6 +26,8 @@ class ResolveActiveTenant
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
+        $tenantContext = app(TenantContext::class);
+        $tenantContext->forget();
 
         if ($user !== null && $request->hasSession()) {
             $user->loadMissing('roles');
@@ -33,6 +37,7 @@ class ResolveActiveTenant
 
             if ($isSuperAdmin && $viewTenantId > 0 && Tenant::whereKey($viewTenantId)->exists()) {
                 $user->tenant_id = $viewTenantId;
+                $tenantContext->set($viewTenantId);
 
                 // In-memory only. Assigning alone was not enough: the attribute
                 // stayed dirty, so any later save() on this same instance wrote
@@ -41,6 +46,27 @@ class ResolveActiveTenant
                 // exactly that. Syncing the original marks it unchanged, so a
                 // save never carries it.
                 $user->syncOriginalAttribute('tenant_id');
+            } elseif (! $isSuperAdmin) {
+                $activeTenantId = (int) $request->session()->get('active_tenant_id', 0);
+
+                if ($activeTenantId > 0 && TenantMembership::query()
+                    ->where('user_id', $user->id)
+                    ->where('tenant_id', $activeTenantId)
+                    ->where('status', 'active')
+                    ->whereHas('tenant', fn ($query) => $query->whereIn('status', ['trial', 'active']))
+                    ->exists()) {
+                    $user->tenant_id = $activeTenantId;
+                    $tenantContext->set($activeTenantId);
+                    $user->syncOriginalAttribute('tenant_id');
+                } else {
+                    $request->session()->forget('active_tenant_id');
+                    $tenantContext->set($user->tenant_id);
+                }
+            }
+
+            if ($tenantContext->id() !== null) {
+                $user->unsetRelation('roles');
+                $user->load('roles');
             }
         }
 

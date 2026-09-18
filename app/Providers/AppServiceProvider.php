@@ -35,6 +35,7 @@ use App\Services\ActivityLogger;
 use App\Services\LoginSecurity;
 use App\Support\GeneratedImageBag;
 use App\Support\SubscriptionStatusCache;
+use App\Support\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Lockout;
@@ -67,6 +68,10 @@ class AppServiceProvider extends ServiceProvider
         // the Inertia banner reads it again; memoise it for the request only —
         // never across requests, or a renewal would not unlock anything.
         $this->app->scoped(SubscriptionStatusCache::class);
+
+        // The active company is request state: it must be shared by every
+        // role/permission query in one request, but never leak into another.
+        $this->app->scoped(TenantContext::class);
     }
 
     /**

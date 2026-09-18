@@ -464,3 +464,32 @@ html {
         grid-template-columns: 1fr !important;
     }
 }
+
+@media (max-width: 700px) {
+    .mc-page {
+        padding: 24px 16px 34px !important;
+    }
+
+    .mc-page-header {
+        align-items: stretch !important;
+        flex-direction: column;
+        gap: 16px !important;
+    }
+
+    .mc-page-header > button {
+        width: 100%;
+    }
+
+    .mc-summary-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .mc-summary-grid > div {
+        border-right: 0 !important;
+        border-bottom: 1px solid var(--avn-line, #f1f3f9);
+    }
+
+    .mc-summary-grid > div:last-child {
+        border-bottom: 0;
+    }
+}

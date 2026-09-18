@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Notification;
 use App\Models\Tenant;
+use App\Models\TenantMembership;
 use App\Models\User;
 use App\Models\WebsiteSetting;
 use App\Support\Access;
@@ -58,6 +59,7 @@ class HandleInertiaRequests extends Middleware
                 'roles' => fn () => $user?->roles()->pluck('code')->all() ?? [],
                 'isSuperAdmin' => fn () => (bool) $user?->roles()->where('code', 'super_admin')->exists(),
                 'tenant' => fn () => $this->tenantBranding($request, $user),
+                'companies' => fn () => $this->availableCompanies($request, $user),
                 // Effective {module}.{action} codes for action-level UI gating
                 // (usePermission). A super admin resolves to every code; null
                 // when enforcement is disabled so the UI gates nothing.
@@ -136,6 +138,33 @@ class HandleInertiaRequests extends Middleware
             'company_name' => $tenant->company_name,
             'logo_url' => $logoPath !== null ? Storage::disk('public')->url($logoPath) : null,
         ];
+    }
+
+    /**
+     * Companies the signed-in tenant user may switch to.
+     *
+     * @return array<int, array{id: int, name: string, company_name: string|null, is_current: bool}>
+     */
+    private function availableCompanies(Request $request, ?User $user): array
+    {
+        if ($user === null || $user->isSuperAdmin()) {
+            return [];
+        }
+
+        return TenantMembership::query()
+            ->active()
+            ->where('user_id', $user->id)
+            ->whereHas('tenant', fn ($query) => $query->whereIn('status', ['trial', 'active']))
+            ->with('tenant:id,name,company_name')
+            ->get()
+            ->map(fn (TenantMembership $membership): array => [
+                'id' => (int) $membership->tenant_id,
+                'name' => $membership->tenant?->name ?? 'Perusahaan',
+                'company_name' => $membership->tenant?->company_name,
+                'is_current' => (int) $membership->tenant_id === (int) $user->tenant_id,
+            ])
+            ->values()
+            ->all();
     }
 
     /**

@@ -232,7 +232,8 @@ final class AvanaNav
                 self::leaf('report-studio', 'Report Studio', 'table-2', '/avana/report-studio', 'dynamic_report', ['dynamic_report']),
             ]],
             ['title' => 'SISTEM', 'items' => [
-                self::leaf('perusahaan', 'Perusahaan', 'building-2', '/avana/perusahaan', 'organization', ['branch', 'department', 'position', 'organization']),
+                self::leaf('perusahaan', 'Pengaturan Perusahaan', 'building-2', '/avana/perusahaan', 'organization', ['branch', 'department', 'position', 'organization']),
+                self::leaf('perusahaan-saya', 'Grup Perusahaan', 'building-2', '/avana/perusahaan-saya', 'organization', ['organization'], true),
                 self::leaf('pengguna', 'Pengguna', 'user-cog', '/avana/pengguna', null, ['user'], false, true),
                 self::leaf('custom-fields', 'Field Kustom', 'list-plus', '/avana/custom-fields', null, self::MANAGE_MODULES, true),
                 // Hak Akses now bundles per-role permissions, feature on/off, the

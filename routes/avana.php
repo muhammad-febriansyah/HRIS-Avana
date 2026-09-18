@@ -23,6 +23,7 @@ use App\Http\Controllers\Avana\CalendarController;
 use App\Http\Controllers\Avana\CashAdvanceController;
 use App\Http\Controllers\Avana\ClaimController;
 use App\Http\Controllers\Avana\CompanySetupController;
+use App\Http\Controllers\Avana\CompanySwitcherController;
 use App\Http\Controllers\Avana\CompetencyController;
 use App\Http\Controllers\Avana\ContractController;
 use App\Http\Controllers\Avana\CrmController;
@@ -76,6 +77,7 @@ use App\Http\Controllers\Avana\MeetingController;
 use App\Http\Controllers\Avana\MenuBuilderController;
 use App\Http\Controllers\Avana\MoodController;
 use App\Http\Controllers\Avana\MovementController;
+use App\Http\Controllers\Avana\MultiCompanyController;
 use App\Http\Controllers\Avana\NewsController;
 use App\Http\Controllers\Avana\NotificationController;
 use App\Http\Controllers\Avana\OffboardingController;
@@ -140,6 +142,7 @@ use Illuminate\Support\Facades\Route;
  */
 Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity::class])->prefix('avana')->name('avana.')->group(function () {
     Route::post('view-tenant', [ViewTenantController::class, 'store'])->name('view-tenant');
+    Route::post('switch-company', [CompanySwitcherController::class, 'store'])->name('switch-company');
     Route::post('notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::post('notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::get('search', [SearchController::class, 'index'])->name('search');
@@ -403,6 +406,8 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     Route::post('perusahaan/{entity}', [CompanySetupController::class, 'store'])->name('perusahaan.store');
     Route::put('perusahaan/{entity}/{record}', [CompanySetupController::class, 'update'])->name('perusahaan.update');
     Route::delete('perusahaan/{entity}/{record}', [CompanySetupController::class, 'destroy'])->name('perusahaan.destroy');
+    Route::get('perusahaan-saya', [MultiCompanyController::class, 'index'])->name('perusahaan-saya');
+    Route::post('perusahaan-saya', [MultiCompanyController::class, 'store'])->name('perusahaan-saya.store');
 
     Route::get('laporan', [LaporanController::class, 'index'])->name('laporan');
     Route::get('laporan/export/{type}', [LaporanController::class, 'export'])->name('laporan.export');
@@ -590,6 +595,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     Route::post('klien/{tenant}/feature', [TenantController::class, 'toggleFeature'])->name('klien.feature.toggle');
     Route::post('klien/{tenant}/admin', [TenantController::class, 'storeAdmin'])->name('klien.admin.store');
     Route::post('klien/{tenant}/admin/{user}/password', [TenantController::class, 'resetAdminPassword'])->name('klien.admin.password');
+    Route::put('klien/{tenant}/addon/multi-company', [TenantController::class, 'updateMultiCompanyAddon'])->name('klien.addon.multi-company.update');
 
     // Billing & Invoice (super admin) — client subscriptions + invoices
     Route::get('billing', [BillingController::class, 'index'])->name('billing');
