@@ -48,12 +48,43 @@ export interface RosterPatternOption {
     cycle_days: number;
 }
 
+export type RosterPlanDayType = 'jadwal' | 'libur';
+export type RosterPlanCategory = 'wfo' | 'wfh' | 'wfa';
+
+export interface RosterPlanDay {
+    id?: number;
+    /** Client-only flag; configured days are the only rows sent to the draft API. */
+    configured?: boolean;
+    date: string;
+    type: RosterPlanDayType;
+    category: RosterPlanCategory | null;
+    boundary_start: string | null;
+    boundary_end: string | null;
+    schedule_start: string | null;
+    schedule_end: string | null;
+    break_start: string | null;
+    break_end: string | null;
+    notes: string | null;
+}
+
+export interface RosterPlan {
+    id: number;
+    employee_id: number;
+    name: string | null;
+    shift_label: string | null;
+    period_start: string;
+    period_end: string;
+    status: 'draft';
+    days: RosterPlanDay[];
+}
+
 /** Props for the roster page (`index.tsx`). */
 export interface RosterProps {
     employees: RosterEmployee[];
     shifts: RosterShift[];
     schedules: RosterSchedule[];
     patterns: RosterPatternOption[];
+    draft_plans: RosterPlan[];
     week: RosterWeekDay[];
     week_start: string;
 }

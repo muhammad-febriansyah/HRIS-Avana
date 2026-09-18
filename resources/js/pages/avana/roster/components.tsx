@@ -149,7 +149,13 @@ export function ShiftLegend({ shifts, colorForShift }: ShiftLegendProps) {
 }
 
 /** Avatar + name + employee number cell for a roster row. */
-export function EmployeeCell({ employee }: { employee: RosterEmployee }) {
+export function EmployeeCell({
+    employee,
+    onClick,
+}: {
+    employee: RosterEmployee;
+    onClick: () => void;
+}) {
     return (
         <td style={{ padding: '12px 18px' }}>
             <div
@@ -176,7 +182,18 @@ export function EmployeeCell({ employee }: { employee: RosterEmployee }) {
                 >
                     {initialsOf(employee.name)}
                 </div>
-                <div>
+                <button
+                    type="button"
+                    onClick={onClick}
+                    title="Buka detail plan roster"
+                    style={{
+                        padding: 0,
+                        border: 0,
+                        background: 'transparent',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                    }}
+                >
                     <div
                         style={{
                             fontSize: 13,
@@ -194,7 +211,7 @@ export function EmployeeCell({ employee }: { employee: RosterEmployee }) {
                     >
                         {employee.employee_number}
                     </div>
-                </div>
+                </button>
             </div>
         </td>
     );

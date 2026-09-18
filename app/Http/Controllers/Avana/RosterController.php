@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Models\RosterPattern;
+use App\Models\RosterPlan;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
 use App\Support\Roster;
@@ -110,6 +111,47 @@ class RosterController extends Controller
                     'summary' => $pattern->summary(),
                     'cycle_days' => $pattern->cycleDays(),
                 ]),
+            'draft_plans' => RosterPlan::forTenant($tenantId)
+                ->where('status', RosterPlan::STATUS_DRAFT)
+                ->whereDate('period_start', '<=', $weekEnd->format('Y-m-d'))
+                ->whereDate('period_end', '>=', $weekStart->format('Y-m-d'))
+                ->with(['days' => fn ($query) => $query->orderBy('date')])
+                ->orderByDesc('updated_at')
+                ->get()
+                ->map(fn (RosterPlan $plan): array => [
+                    'id' => $plan->id,
+                    'employee_id' => $plan->employee_id,
+                    'name' => $plan->name,
+                    'shift_label' => $plan->shift_label,
+                    'period_start' => $plan->period_start->format('Y-m-d'),
+                    'period_end' => $plan->period_end->format('Y-m-d'),
+                    'status' => $plan->status,
+                    'days' => $plan->days->map(fn ($day): array => [
+                        'id' => $day->id,
+                        'date' => $day->date->format('Y-m-d'),
+                        'type' => $day->type,
+                        'category' => $day->category,
+                        'boundary_start' => $day->boundary_start === null
+                            ? null
+                            : substr((string) $day->boundary_start, 0, 5),
+                        'boundary_end' => $day->boundary_end === null
+                            ? null
+                            : substr((string) $day->boundary_end, 0, 5),
+                        'schedule_start' => $day->schedule_start === null
+                            ? null
+                            : substr((string) $day->schedule_start, 0, 5),
+                        'schedule_end' => $day->schedule_end === null
+                            ? null
+                            : substr((string) $day->schedule_end, 0, 5),
+                        'break_start' => $day->break_start === null
+                            ? null
+                            : substr((string) $day->break_start, 0, 5),
+                        'break_end' => $day->break_end === null
+                            ? null
+                            : substr((string) $day->break_end, 0, 5),
+                        'notes' => $day->notes,
+                    ])->values()->all(),
+                ])->values()->all(),
             'week' => $week,
             'week_start' => $weekStart->format('Y-m-d'),
         ]);

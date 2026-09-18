@@ -106,6 +106,7 @@ use App\Http\Controllers\Avana\ReimbursementController;
 use App\Http\Controllers\Avana\ReportStudioController;
 use App\Http\Controllers\Avana\RosterController;
 use App\Http\Controllers\Avana\RosterPatternController;
+use App\Http\Controllers\Avana\RosterPlanController;
 use App\Http\Controllers\Avana\SalaryAssignmentController;
 use App\Http\Controllers\Avana\SalaryHistoryController;
 use App\Http\Controllers\Avana\SalaryMasterController;
@@ -436,6 +437,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     Route::post('roster/copy-week', [RosterController::class, 'copyPreviousWeek'])->name('roster.copy-week');
     Route::post('roster/apply-pattern', [RosterController::class, 'applyPattern'])->name('roster.apply-pattern');
     Route::delete('roster/{schedule}', [RosterController::class, 'destroy'])->name('roster.destroy');
+    Route::post('roster/plans', [RosterPlanController::class, 'store'])->name('roster.plans.store');
 
     Route::get('roster-pola', [RosterPatternController::class, 'index'])->name('roster-pola');
     Route::post('roster-pola', [RosterPatternController::class, 'store'])->name('roster-pola.store');

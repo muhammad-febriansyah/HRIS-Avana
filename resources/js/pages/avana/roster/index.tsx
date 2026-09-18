@@ -7,9 +7,11 @@ import { AIcon, C } from '@/lib/avana';
 import { ShiftLegend, WeekNavigator } from './components';
 import { PatternPanel } from './pattern-panel';
 import { RosterGrid } from './roster-grid';
+import { RosterPlanModal } from './roster-plan-modal';
 import { SHIFT_PALETTE, toIso } from './types';
 import type {
     FlashProps,
+    RosterPlan,
     RosterProps,
     RosterSchedule,
     RosterShift,
@@ -30,11 +32,15 @@ export default function AvanaRoster({
     shifts,
     schedules,
     patterns,
+    draft_plans,
     week,
     week_start,
 }: RosterProps) {
     const { flash } = usePage<FlashProps>().props;
     const [openCell, setOpenCell] = useState<string | null>(null);
+    const [planEmployee, setPlanEmployee] = useState<
+        RosterProps['employees'][number] | null
+    >(null);
 
     useEffect(() => {
         if (flash?.success) {
@@ -59,6 +65,19 @@ export default function AvanaRoster({
 
     const shiftFor = (shiftId: number): RosterShift | undefined =>
         shifts.find((shift) => shift.id === shiftId);
+
+    const planForEmployee = (employeeId: number): RosterPlan | undefined =>
+        draft_plans.find((plan) => plan.employee_id === employeeId);
+
+    const currentShiftLabelFor = (employeeId: number): string => {
+        const schedule = schedules.find(
+            (item) => item.employee_id === employeeId && item.shift_id !== null,
+        );
+
+        return schedule?.shift_id
+            ? (shiftFor(schedule.shift_id)?.name ?? '')
+            : '';
+    };
 
     const shiftWeek = (deltaDays: number) => {
         const base = new Date(`${week_start}T00:00:00`);
@@ -337,6 +356,7 @@ export default function AvanaRoster({
                     colorForShift={colorForShift}
                     onAssign={assignShift}
                     onRemove={removeSchedule}
+                    onOpenPlan={setPlanEmployee}
                 />
             </div>
 
@@ -350,6 +370,15 @@ export default function AvanaRoster({
                         zIndex: 30,
                         background: 'transparent',
                     }}
+                />
+            )}
+            {planEmployee && (
+                <RosterPlanModal
+                    employee={planEmployee}
+                    plan={planForEmployee(planEmployee.id)}
+                    week={week}
+                    currentShiftLabel={currentShiftLabelFor(planEmployee.id)}
+                    onClose={() => setPlanEmployee(null)}
                 />
             )}
         </>

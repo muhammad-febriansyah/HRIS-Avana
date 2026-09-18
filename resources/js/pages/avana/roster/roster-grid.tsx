@@ -124,8 +124,13 @@ interface RosterGridProps {
     shiftFor: (shiftId: number) => RosterShift | undefined;
     colorForShift: (shiftId: number) => string;
     /** A null shift marks the day off rather than assigning one. */
-    onAssign: (employeeId: number, date: string, shiftId: number | null) => void;
+    onAssign: (
+        employeeId: number,
+        date: string,
+        shiftId: number | null,
+    ) => void;
     onRemove: (scheduleId: number) => void;
+    onOpenPlan: (employee: RosterEmployee) => void;
 }
 
 /** The weekly roster grid: employees as rows, week days as columns. */
@@ -140,6 +145,7 @@ export function RosterGrid({
     colorForShift,
     onAssign,
     onRemove,
+    onOpenPlan,
 }: RosterGridProps) {
     return (
         <div style={{ ...card, overflow: 'visible' }}>
@@ -225,7 +231,10 @@ export function RosterGrid({
                                 key={employee.id}
                                 style={{ borderTop: `1px solid ${C.line}` }}
                             >
-                                <EmployeeCell employee={employee} />
+                                <EmployeeCell
+                                    employee={employee}
+                                    onClick={() => onOpenPlan(employee)}
+                                />
                                 {week.map((day) => {
                                     const schedule = scheduleFor(
                                         employee.id,
