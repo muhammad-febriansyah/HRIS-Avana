@@ -86,12 +86,14 @@ class SalaryMasterController extends Controller
         $components = PayrollComponent::forTenant($tenantId)
             ->where(fn ($query) => $query->whereNull('status')->orWhere('status', 'active'))
             ->orderBy('name')
-            ->get(['id', 'name', 'component_group'])
+            ->get(['id', 'name', 'component_group', 'is_bpjs_base'])
             ->map(fn (PayrollComponent $c): array => [
                 'id' => $c->id,
                 'name' => $c->name,
                 'group' => $c->component_group ?? 'penerimaan',
+                'is_bpjs_base' => (bool) $c->is_bpjs_base,
                 'included' => (bool) ($flags[$c->id]->included ?? false),
+                'is_bpjs_exempt' => (bool) ($flags[$c->id]->is_bpjs_exempt ?? false),
                 'amount' => (float) ($flags[$c->id]->amount ?? 0),
                 'is_prorate' => (bool) ($flags[$c->id]->is_prorate ?? false),
                 'is_kompensasi' => (bool) ($flags[$c->id]->is_kompensasi ?? false),
@@ -214,6 +216,7 @@ class SalaryMasterController extends Controller
                 Rule::exists('payroll_components', 'id')->where('tenant_id', $tenantId),
             ],
             'components.*.included' => ['required', 'boolean'],
+            'components.*.is_bpjs_exempt' => ['sometimes', 'boolean'],
             'components.*.is_prorate' => ['required', 'boolean'],
             'components.*.is_kompensasi' => ['required', 'boolean'],
             'components.*.amount' => ['required', 'numeric', 'min:0'],
@@ -237,6 +240,7 @@ class SalaryMasterController extends Controller
             ]);
 
             $row->included = (bool) $component['included'];
+            $row->is_bpjs_exempt = $row->included && (bool) ($component['is_bpjs_exempt'] ?? false);
             $row->is_prorate = (bool) $component['is_prorate'];
             $row->is_kompensasi = (bool) $component['is_kompensasi'];
             // A nominal belongs to a component that is actually paid; keeping it
@@ -303,6 +307,11 @@ class SalaryMasterController extends Controller
         }
 
         $row->{$data['flag']} = $data['checked'];
+
+        if ($data['flag'] === 'included' && ! $data['checked']) {
+            $row->is_bpjs_exempt = false;
+        }
+
         $row->save();
 
         // Drop the row once no flag is set so it does not linger empty.

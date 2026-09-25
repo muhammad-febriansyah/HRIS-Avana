@@ -2697,6 +2697,7 @@ class PayrollController extends Controller
         $basic = 0.0;
         $overtimeBasis = 0.0;
         $bpjsBasis = 0.0;
+        $hasBpjsBaseComponent = false;
         $hasCustomOvertime = false;
 
         $salaryComponents = EmployeeSalaryComponent::forTenant($tenantId)
@@ -2712,6 +2713,7 @@ class PayrollController extends Controller
             'component' => $row->component?->code,
             'amount' => (float) $row->amount,
             'salary_master_id' => $row->salary_master_id,
+            'is_bpjs_exempt' => (bool) $row->is_bpjs_exempt,
             'effective_start_date' => $row->effective_start_date?->toDateString(),
             'effective_end_date' => $row->effective_end_date?->toDateString(),
             'change_set_id' => $row->salary_change_set_id,
@@ -2752,7 +2754,7 @@ class PayrollController extends Controller
 
             if ($component->basis_type !== null) {
                 [$amount, $proratable] = $this->derivedComponentAmount($component, $employee, (float) $salaryComponent->amount, $presentDays, $overtimeHours, $tenantId, $period->end_date);
-                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis);
+                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis, $hasBpjsBaseComponent, (bool) $salaryComponent->is_bpjs_exempt);
             } else {
                 $amount = $this->amountForBasis(
                     (float) $salaryComponent->amount,
@@ -2763,7 +2765,7 @@ class PayrollController extends Controller
                 );
                 $proratable = ! in_array($component->calc_basis, ['per_present_day', 'per_overtime_hour'], true);
 
-                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis);
+                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis, $hasBpjsBaseComponent, (bool) $salaryComponent->is_bpjs_exempt);
             }
         }
 
@@ -2837,7 +2839,7 @@ class PayrollController extends Controller
                     $proratable = false;
                 }
 
-                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis);
+                $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis, $hasBpjsBaseComponent, (bool) $masterComponent->is_bpjs_exempt);
             }
         }
 
@@ -2936,6 +2938,7 @@ class PayrollController extends Controller
             ];
 
             if ($component !== null && (bool) $component->is_bpjs_base) {
+                $hasBpjsBaseComponent = true;
                 $bpjsBasis += $amount;
             }
         }
@@ -3050,6 +3053,7 @@ class PayrollController extends Controller
             $tenantId,
             match (true) {
                 $bpjsBasis > 0 => $bpjsBasis,
+                $hasBpjsBaseComponent => 0.0,
                 $basic > 0 => $basic,
                 default => $gross,
             },
@@ -4240,6 +4244,7 @@ class PayrollController extends Controller
      * @param  list<array{name: string, amount: float}>  $deductions
      * @param  float  $overtimeBasis  running total of the earnings marked "Tetap"
      * @param  float  $bpjsBasis  running total of the earnings flagged "ikut basis BPJS"
+     * @param  bool  $hasBpjsBaseComponent  whether any earning is configured as a BPJS basis
      */
     private function collectComponent(
         PayrollComponent $component,
@@ -4250,6 +4255,8 @@ class PayrollController extends Controller
         float &$basic,
         float &$overtimeBasis,
         float &$bpjsBasis,
+        bool &$hasBpjsBaseComponent,
+        bool $isBpjsExempt = false,
     ): void {
         $isDeduction = $component->type === 'deduction' || $component->component_group === 'potongan';
 
@@ -4283,7 +4290,11 @@ class PayrollController extends Controller
         // contribution is computed from, when the employee has no separately
         // reported wage.
         if ($component->is_bpjs_base) {
-            $bpjsBasis += $amount;
+            $hasBpjsBaseComponent = true;
+
+            if (! $isBpjsExempt) {
+                $bpjsBasis += $amount;
+            }
         }
     }
 

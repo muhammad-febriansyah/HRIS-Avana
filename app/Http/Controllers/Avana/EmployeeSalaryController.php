@@ -112,8 +112,11 @@ class EmployeeSalaryController extends Controller
         $masterAmounts = $masterId === null
             ? []
             : SalaryMasterAssignment::templateComponents($tenantId, $masterId);
+        $masterBpjsExemptions = $masterId === null
+            ? []
+            : SalaryMasterAssignment::templateBpjsExemptions($tenantId, $masterId);
 
-        DB::transaction(function () use ($data, $employee, $tenantId, $from, $request, $status, $masterId, $masterAmounts): void {
+        DB::transaction(function () use ($data, $employee, $tenantId, $from, $request, $status, $masterId, $masterAmounts, $masterBpjsExemptions): void {
             Employee::forTenant($tenantId)
                 ->whereKey($employee->id)
                 ->lockForUpdate()
@@ -170,6 +173,7 @@ class EmployeeSalaryController extends Controller
                     $status,
                     $changeSet->id,
                     $sourceType,
+                    $masterBpjsExemptions[$componentId] ?? false,
                 );
             }
 

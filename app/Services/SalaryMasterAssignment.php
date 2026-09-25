@@ -38,6 +38,7 @@ final class SalaryMasterAssignment
         string $status = 'active',
     ): array {
         $components = self::templateComponents($tenantId, (int) $master->id);
+        $bpjsExemptions = self::templateBpjsExemptions($tenantId, (int) $master->id);
 
         $written = 0;
         $kept = 0;
@@ -45,7 +46,7 @@ final class SalaryMasterAssignment
         // signed off as the single decision they are.
         $batchId = (string) Str::ulid();
 
-        DB::transaction(function () use ($employees, $components, $master, $from, $reason, $actorId, $overwriteOwnFigures, $status, $tenantId, $batchId, &$written, &$kept): void {
+        DB::transaction(function () use ($employees, $components, $bpjsExemptions, $master, $from, $reason, $actorId, $overwriteOwnFigures, $status, $tenantId, $batchId, &$written, &$kept): void {
             foreach ($employees as $employee) {
                 $employee = Employee::forTenant($tenantId)
                     ->whereKey($employee->id)
@@ -70,8 +71,7 @@ final class SalaryMasterAssignment
                     ->where('source_type', 'employee_override')
                     ->inForce()
                     ->effectiveOn($from)
-                    ->pluck('payroll_component_id')
-                    ->flip();
+                    ->pluck('amount', 'payroll_component_id');
 
                 if ($status === 'active') {
                     self::retireExistingRows(
@@ -85,8 +85,23 @@ final class SalaryMasterAssignment
                 foreach ($components as $componentId => $amount) {
                     // An employee already carrying their own figure for this
                     // component is an exception someone set deliberately; the
-                    // run keeps it unless told otherwise.
+                    // run keeps its nominal unless told otherwise. BPJS
+                    // metadata still follows newly assigned template.
                     if (! $overwriteOwnFigures && $own->has($componentId)) {
+                        EmployeeSalaryWriter::record(
+                            $tenantId,
+                            (int) $employee->id,
+                            (int) $componentId,
+                            (float) $own->get($componentId),
+                            $from,
+                            $reason ?? 'Penetapan Master Gaji '.$master->code,
+                            $actorId,
+                            (int) $master->id,
+                            $status,
+                            $changeSet->id,
+                            'employee_override',
+                            $bpjsExemptions[$componentId] ?? false,
+                        );
                         $kept++;
 
                         continue;
@@ -104,6 +119,7 @@ final class SalaryMasterAssignment
                         $status,
                         $changeSet->id,
                         'master_copy',
+                        $bpjsExemptions[$componentId] ?? false,
                     );
                     $written++;
                 }
@@ -213,6 +229,26 @@ final class SalaryMasterAssignment
                 && (int) $row->component->tenant_id === $tenantId
                 && ($row->component->status === null || $row->component->status === 'active'))
             ->mapWithKeys(fn (SalaryMasterComponent $row): array => [(int) $row->payroll_component_id => (float) $row->amount])
+            ->all();
+    }
+
+    /**
+     * Return BPJS exclusions configured on active components in a template.
+     *
+     * @return array<int, bool>
+     */
+    public static function templateBpjsExemptions(int $tenantId, int $masterId): array
+    {
+        return SalaryMasterComponent::query()
+            ->where('salary_master_id', $masterId)
+            ->where('included', true)
+            ->where('is_bpjs_exempt', true)
+            ->with('component')
+            ->get()
+            ->filter(fn (SalaryMasterComponent $row): bool => $row->component !== null
+                && (int) $row->component->tenant_id === $tenantId
+                && ($row->component->status === null || $row->component->status === 'active'))
+            ->mapWithKeys(fn (SalaryMasterComponent $row): array => [(int) $row->payroll_component_id => true])
             ->all();
     }
 }

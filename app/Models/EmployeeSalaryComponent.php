@@ -18,6 +18,7 @@ final class EmployeeSalaryComponent extends Model
         'source_type',
         'payroll_component_id',
         'amount',
+        'is_bpjs_exempt',
         // What this version replaced, so a raise reads "from → to" on one row.
         'previous_amount',
         'status',
@@ -38,6 +39,7 @@ final class EmployeeSalaryComponent extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'is_bpjs_exempt' => 'boolean',
             'previous_amount' => 'decimal:2',
             'effective_start_date' => 'date',
             'effective_end_date' => 'date',

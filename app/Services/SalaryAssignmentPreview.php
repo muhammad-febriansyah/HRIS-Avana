@@ -31,6 +31,7 @@ final class SalaryAssignmentPreview
         $employees = $employees->sortBy('id')->values();
         $employeeIds = $employees->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
         $templateRates = SalaryMasterAssignment::templateComponents($tenantId, (int) $master->id);
+        $templateBpjsExemptions = SalaryMasterAssignment::templateBpjsExemptions($tenantId, (int) $master->id);
         $components = PayrollComponent::forTenant($tenantId)
             ->get(['id', 'type', 'component_group', 'calc_basis', 'status', 'updated_at'])
             ->keyBy('id');
@@ -146,6 +147,7 @@ final class SalaryAssignmentPreview
                 'rates' => collect($templateRates)->map(fn (float $amount, int $id): array => [
                     'component_id' => $id,
                     'amount' => number_format($amount, 2, '.', ''),
+                    'is_bpjs_exempt' => $templateBpjsExemptions[$id] ?? false,
                     'basis' => $components[$id]?->calc_basis,
                     'status' => $components[$id]?->status,
                     'updated_at' => $components[$id]?->updated_at?->format('Y-m-d H:i:s.u'),
@@ -162,6 +164,7 @@ final class SalaryAssignmentPreview
                     'component_id' => (int) $row->payroll_component_id,
                     'amount' => (string) $row->amount,
                     'source' => $row->source_type,
+                    'is_bpjs_exempt' => (bool) $row->is_bpjs_exempt,
                     'status' => $row->status,
                     'start' => $row->effective_start_date?->toDateString(),
                     'end' => $row->effective_end_date?->toDateString(),

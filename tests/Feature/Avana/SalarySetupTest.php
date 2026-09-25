@@ -328,6 +328,28 @@ it('shows the master nominal for every component of the chosen employee', functi
                 ->firstWhere('id', $transport->id)['master_amount'] === 500_000.0));
 });
 
+it('carries the master BPJS exclusion into individual employee salary rows', function (): void {
+    PayrollPeriod::forTenant($this->tenant->id)->update(['status' => 'draft']);
+    [$basic] = seedMasterComponents($this);
+    $this->master->components()
+        ->where('payroll_component_id', $basic->id)
+        ->update(['is_bpjs_exempt' => true]);
+
+    actingAs($this->admin)->post('spec-salary/gaji-karyawan', [
+        'employee_id' => $this->employee->id,
+        'salary_master_id' => $this->master->id,
+        'effective_start_date' => '2026-07-01',
+        'reason' => 'Penyesuaian BPJS',
+        'components' => [['payroll_component_id' => $basic->id, 'amount' => 5_000_000]],
+    ])->assertSessionHasNoErrors();
+
+    expect(EmployeeSalaryComponent::forTenant($this->tenant->id)
+        ->where('employee_id', $this->employee->id)
+        ->where('payroll_component_id', $basic->id)
+        ->whereDate('effective_start_date', '2026-07-01')
+        ->value('is_bpjs_exempt'))->toBeTrue();
+});
+
 it('loads a newly selected master before an employee has an assignment', function (): void {
     [, $transport] = seedMasterComponents($this);
     $this->employee->update(['salary_master_id' => null]);
@@ -707,6 +729,9 @@ it('keeps an employee own figure unless the run is told to overwrite it', functi
     PayrollPeriod::forTenant($this->tenant->id)->update(['status' => 'draft']);
 
     [$basic] = seedMasterComponents($this);
+    $this->master->components()
+        ->where('payroll_component_id', $basic->id)
+        ->update(['is_bpjs_exempt' => true]);
 
     EmployeeSalaryComponent::create([
         'tenant_id' => $this->tenant->id,
@@ -729,6 +754,12 @@ it('keeps an employee own figure unless the run is told to overwrite it', functi
         ->inForce()
         ->effectiveOn('2026-07-01')
         ->value('amount'))->toBe(9_000_000.0);
+    expect(EmployeeSalaryComponent::forTenant($this->tenant->id)
+        ->where('employee_id', $this->employee->id)
+        ->where('payroll_component_id', $basic->id)
+        ->inForce()
+        ->effectiveOn('2026-07-01')
+        ->value('is_bpjs_exempt'))->toBeTrue();
 
     postMassAssignment($this, [
         'salary_master_id' => $this->master->id,

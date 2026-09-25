@@ -40,8 +40,9 @@ final class EmployeeSalaryWriter
         string $status = 'active',
         ?int $changeSetId = null,
         string $sourceType = 'employee_override',
+        bool $isBpjsExempt = false,
     ): EmployeeSalaryComponent {
-        return DB::transaction(function () use ($tenantId, $employeeId, $componentId, $amount, $from, $reason, $actorId, $salaryMasterId, $status, $changeSetId, $sourceType): EmployeeSalaryComponent {
+        return DB::transaction(function () use ($tenantId, $employeeId, $componentId, $amount, $from, $reason, $actorId, $salaryMasterId, $status, $changeSetId, $sourceType, $isBpjsExempt): EmployeeSalaryComponent {
             self::lockEmployee($tenantId, $employeeId);
 
             $scope = EmployeeSalaryComponent::forTenant($tenantId)
@@ -63,6 +64,7 @@ final class EmployeeSalaryWriter
                     'salary_master_id' => $salaryMasterId,
                     'salary_change_set_id' => $changeSetId ?? $sameDay->salary_change_set_id,
                     'source_type' => $sourceType,
+                    'is_bpjs_exempt' => $isBpjsExempt,
                 ]);
 
                 if ($status === 'active') {
@@ -100,6 +102,7 @@ final class EmployeeSalaryWriter
                 'source_type' => $sourceType,
                 'payroll_component_id' => $componentId,
                 'amount' => $amount,
+                'is_bpjs_exempt' => $isBpjsExempt,
                 'previous_amount' => $previousAmount === null ? null : (float) $previousAmount,
                 'status' => $status,
                 'effective_start_date' => $from->toDateString(),

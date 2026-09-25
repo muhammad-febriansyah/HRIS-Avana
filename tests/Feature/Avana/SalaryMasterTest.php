@@ -84,6 +84,7 @@ it('saves the component checklist with the form and lands back on the list', fun
                 [
                     'payroll_component_id' => $basic->id,
                     'included' => true,
+                    'is_bpjs_exempt' => true,
                     'is_prorate' => true,
                     'is_kompensasi' => false,
                     'amount' => 7_250_000,
@@ -105,6 +106,7 @@ it('saves the component checklist with the form and lands back on the list', fun
 
     expect($row->included)->toBeTrue()
         ->and($row->is_prorate)->toBeTrue()
+        ->and($row->is_bpjs_exempt)->toBeTrue()
         ->and((float) $row->amount)->toBe(7_250_000.0)
         // Nothing is kept for a component nobody ticked.
         ->and($master->components()->where('payroll_component_id', $other->id)->exists())->toBeFalse();
@@ -346,6 +348,31 @@ it('does not mark a component included when only a section flag is toggled', fun
     $row = $master->components()->where('payroll_component_id', $component->id)->firstOrFail();
     expect((bool) $row->is_prorate)->toBeTrue();
     expect((bool) $row->included)->toBeFalse();
+});
+
+it('clears BPJS exclusion when legacy membership toggle is disabled', function (): void {
+    $master = SalaryMaster::create(['tenant_id' => $this->tenant->id, 'code' => 'MG-BPJS-CLEAR', 'category' => 'Organik']);
+    $component = PayrollComponent::forTenant($this->tenant->id)->firstOrFail();
+    $master->components()->create([
+        'payroll_component_id' => $component->id,
+        'included' => true,
+        'is_prorate' => true,
+        'is_bpjs_exempt' => true,
+        'amount' => 100_000,
+    ]);
+
+    actingAs($this->admin)
+        ->post('spec-mg/master-gaji/'.$master->id.'/component', [
+            'payroll_component_id' => $component->id,
+            'flag' => 'included',
+            'checked' => false,
+        ])
+        ->assertSessionHas('success');
+
+    $row = $master->components()->where('payroll_component_id', $component->id)->firstOrFail();
+    expect((bool) $row->included)->toBeFalse()
+        ->and((bool) $row->is_prorate)->toBeTrue()
+        ->and((bool) $row->is_bpjs_exempt)->toBeFalse();
 });
 
 it('scopes a salary master to its tenant on the checklist endpoint', function (): void {

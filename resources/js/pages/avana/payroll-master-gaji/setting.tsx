@@ -6,13 +6,19 @@ import SalaryMasterController from '@/actions/App/Http/Controllers/Avana/SalaryM
 import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, C, card, RupiahInput } from '@/lib/avana';
 
-type FlagKey = 'included' | 'is_prorate' | 'is_kompensasi';
+type FlagKey =
+    | 'included'
+    | 'is_bpjs_exempt'
+    | 'is_prorate'
+    | 'is_kompensasi';
 
 interface Component {
     id: number;
     name: string;
     group: string;
+    is_bpjs_base: boolean;
     included: boolean;
+    is_bpjs_exempt: boolean;
     amount: number;
     is_prorate: boolean;
     is_kompensasi: boolean;
@@ -30,11 +36,13 @@ function MembershipRow({
     amount,
     onAmount,
     onToggle,
+    onBpjsExempt,
 }: {
     c: Component;
     amount: string;
     onAmount: (value: string) => void;
     onToggle: (checked: boolean) => void;
+    onBpjsExempt: (checked: boolean) => void;
 }) {
     return (
         <div
@@ -63,6 +71,29 @@ function MembershipRow({
                         gap: 4,
                     }}
                 >
+                    {c.is_bpjs_base && (
+                        <label
+                            title="Komponen ini tidak masuk basis iuran BPJS untuk Master Gaji ini"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                color: C.muted,
+                                fontSize: 11,
+                                whiteSpace: 'nowrap',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={c.is_bpjs_exempt}
+                                onChange={(e) =>
+                                    onBpjsExempt(e.target.checked)
+                                }
+                            />
+                            Tanpa BPJS
+                        </label>
+                    )}
                     <RupiahInput
                         style={{ ...input, width: 140, textAlign: 'right' }}
                         value={amount}
@@ -252,6 +283,9 @@ function ChecklistSection({
                             amount={amounts[c.id] ?? ''}
                             onAmount={(value) => onAmount(c.id, value)}
                             onToggle={(checked) => toggle(c, checked)}
+                            onBpjsExempt={(checked) =>
+                                onFlag(c.id, 'is_bpjs_exempt', checked)
+                            }
                         />
                     ) : (
                         <label
@@ -352,6 +386,7 @@ export default function MasterGajiSetting({
             components: sheet.map((c) => ({
                 payroll_component_id: c.id,
                 included: c.included,
+                is_bpjs_exempt: c.is_bpjs_exempt,
                 is_prorate: c.is_prorate,
                 is_kompensasi: c.is_kompensasi,
                 amount: Number(amounts[c.id]) || 0,

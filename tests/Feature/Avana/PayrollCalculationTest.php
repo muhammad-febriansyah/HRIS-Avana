@@ -7,6 +7,7 @@ use App\Models\BpjsRate;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\EmployeeBpjsProgram;
+use App\Models\EmployeeSalaryComponent;
 use App\Models\OvertimeRequest;
 use App\Models\Payday;
 use App\Models\PayrollComponent;
@@ -363,6 +364,40 @@ it('deducts internal BPJS computed from the registered wage', function (): void 
     expect((float) $deductions->firstWhere('name', 'JHT (Karyawan)')['amount'])->toBe(100_000.0);
     expect((float) $deductions->firstWhere('name', 'JP (Karyawan)')['amount'])->toBe(50_000.0);
     expect($deductions->firstWhere('name', 'BPJS (Karyawan)'))->toBeNull();
+});
+
+it('carries a Master Gaji BPJS exclusion into assigned salary rows', function (): void {
+    $component = configureComponent($this->employee, 'BASIC', 'fixed', 5_000_000);
+    $master = SalaryMaster::forTenant($this->tenant->id)->findOrFail($this->employee->salary_master_id);
+    $master->components()
+        ->where('payroll_component_id', $component->id)
+        ->update(['is_bpjs_exempt' => true]);
+
+    EmployeeBpjsProfile::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $this->employee->id,
+        'participation_status' => 'participant',
+        'registered_wage' => 0,
+    ]);
+
+    SalaryMasterAssignment::apply(
+        (int) $this->tenant->id,
+        $master,
+        collect([$this->employee]),
+        Carbon::parse($this->period->start_date),
+        actorId: (int) $this->admin->id,
+    );
+
+    expect(EmployeeSalaryComponent::forTenant($this->tenant->id)
+        ->where('employee_id', $this->employee->id)
+        ->where('payroll_component_id', $component->id)
+        ->inForce()
+        ->value('is_bpjs_exempt'))->toBeTrue();
+
+    $item = runAndItem($this);
+
+    expect((float) $item->bpjs_employee_total)->toBe(0.0)
+        ->and((float) $item->bpjs_company_total)->toBe(0.0);
 });
 
 it('skips every BPJS contribution for a non-participant employee', function (): void {
