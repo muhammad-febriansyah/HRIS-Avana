@@ -899,7 +899,7 @@ export default function MasterGajiSetting({
                 />
 
                 {/* Tempel ke Pegawai */}
-                <div style={{ ...card, padding: 18 }}>
+                <div style={{ ...card, padding: 18, margin: '24px 0' }}>
                     <div
                         style={{
                             display: 'flex',
@@ -1120,13 +1120,12 @@ function SalaryValidationPanel({
                                         </td>
                                         <td style={cell}>
                                             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                                <input
+                                                <RupiahInput
                                                     style={{ ...input, width: 130 }}
-                                                    type="number"
-                                                    placeholder={String(Math.round(s.basic))}
+                                                    placeholder={Math.round(s.basic).toLocaleString('id-ID')}
                                                     value={draft[s.id] ?? ''}
-                                                    onChange={(e) =>
-                                                        setDraft((d) => ({ ...d, [s.id]: e.target.value }))
+                                                    onChange={(rawDigits) =>
+                                                        setDraft((d) => ({ ...d, [s.id]: rawDigits }))
                                                     }
                                                 />
                                                 <button
