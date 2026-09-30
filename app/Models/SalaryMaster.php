@@ -43,6 +43,11 @@ final class SalaryMaster extends Model
         return $this->hasMany(SalaryMasterComponent::class);
     }
 
+    public function bpjsPrograms(): HasMany
+    {
+        return $this->hasMany(SalaryMasterBpjsProgram::class);
+    }
+
     public function employees(): HasMany
     {
         return $this->hasMany(Employee::class);

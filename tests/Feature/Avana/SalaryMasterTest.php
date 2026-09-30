@@ -3,6 +3,7 @@
 use App\Http\Controllers\Avana\PayrollController;
 use App\Http\Controllers\Avana\SalaryMasterController;
 use App\Models\Attendance;
+use App\Models\BpjsProgram;
 use App\Models\Employee;
 use App\Models\EmployeeSalaryComponent;
 use App\Models\OvertimeRequest;
@@ -11,6 +12,7 @@ use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\SalaryMaster;
+use App\Models\SalaryMasterBpjsProgram;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -110,6 +112,40 @@ it('saves the component checklist with the form and lands back on the list', fun
         ->and((float) $row->amount)->toBe(7_250_000.0)
         // Nothing is kept for a component nobody ticked.
         ->and($master->components()->where('payroll_component_id', $other->id)->exists())->toBeFalse();
+});
+
+it('shows and saves each BPJS program independently on the master', function (): void {
+    $master = SalaryMaster::create([
+        'tenant_id' => $this->tenant->id,
+        'code' => 'MG-BPJS',
+        'category' => 'Organik',
+    ]);
+    $programs = BpjsProgram::forTenant($this->tenant->id)
+        ->whereIn('code', ['JHT', 'JP', 'KESEHATAN'])
+        ->get();
+
+    actingAs($this->admin)
+        ->get('spec-mg/master-gaji/'.$master->id.'/setting')
+        ->assertInertia(fn ($page) => $page
+            ->where('bpjsPrograms', fn (Collection $rows): bool => $rows
+                ->whereIn('code', ['JHT', 'JP', 'KESEHATAN'])
+                ->every(fn (array $row): bool => $row['included'] === true)));
+
+    actingAs($this->admin)
+        ->put('spec-mg/master-gaji/'.$master->id, [
+            'code' => 'MG-BPJS',
+            'category' => 'Organik',
+            'bpjs_programs' => $programs->map(fn ($program): array => [
+                'bpjs_program_id' => $program->id,
+                'included' => $program->code !== 'JHT',
+            ])->all(),
+        ])
+        ->assertSessionHas('success');
+
+    expect(SalaryMasterBpjsProgram::query()
+        ->where('salary_master_id', $master->id)
+        ->where('bpjs_program_id', $programs->firstWhere('code', 'JHT')->id)
+        ->value('included'))->toBeFalse();
 });
 
 it('does not touch the template until the form is submitted', function (): void {

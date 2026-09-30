@@ -28,6 +28,7 @@ use App\Models\PayrollRunItem;
 use App\Models\PkpRate;
 use App\Models\PtkpRate;
 use App\Models\SalaryMaster;
+use App\Models\SalaryMasterBpjsProgram;
 use App\Models\SalaryMasterComponent;
 use App\Models\SalaryRapel;
 use App\Models\TaxProfile;
@@ -3656,6 +3657,25 @@ class PayrollController extends Controller
             'jkm' => 'jkm_enabled',
         ];
 
+        // A Master Gaji can narrow BPJS participation per program. Masters
+        // created before this setting existed have no rows and retain the
+        // previous employee-profile behavior.
+        $masterProgramIds = null;
+        $effectiveMasterId = SalaryMasterAssignment::effectiveMasterId($employee, $on);
+
+        if ($effectiveMasterId !== null) {
+            $masterProgramSelection = SalaryMasterBpjsProgram::query()
+                ->where('tenant_id', $tenantId)
+                ->where('salary_master_id', $effectiveMasterId)
+                ->get(['bpjs_program_id', 'included']);
+
+            if ($masterProgramSelection->isNotEmpty()) {
+                $masterProgramIds = $masterProgramSelection
+                    ->where('included', true)
+                    ->pluck('bpjs_program_id');
+            }
+        }
+
         $employeeTotal = 0.0;
         $companyTotal = 0.0;
         $taxableCompany = 0.0;
@@ -3677,6 +3697,7 @@ class PayrollController extends Controller
         $programs = BpjsProgram::forTenant($tenantId)
             ->where('is_active', true)
             ->when($hasExplicitEnrollment, fn ($query) => $query->whereIn('id', $enrolledProgramIds))
+            ->when($masterProgramIds !== null, fn ($query) => $query->whereIn('id', $masterProgramIds))
             ->with(['rates' => fn ($query) => $query
                 ->where('is_active', true)
                 ->where(fn ($q) => $q->whereNull('effective_start_date')->orWhereDate('effective_start_date', '<=', $date))

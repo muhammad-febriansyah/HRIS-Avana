@@ -24,6 +24,13 @@ interface Component {
     is_kompensasi: boolean;
 }
 
+interface BpjsProgram {
+    id: number;
+    code: string;
+    name: string;
+    included: boolean;
+}
+
 /**
  * One membership row: the included checkbox plus its monthly nominal input.
  *
@@ -169,6 +176,7 @@ interface EmployeeSalary {
 interface Props {
     master: Master;
     components: Component[];
+    bpjsPrograms: BpjsProgram[];
     dayCalcMethods: DayCalcMethodOption[];
     gradeOptions: GradeOption[];
     salaries: EmployeeSalary[];
@@ -330,9 +338,66 @@ function ChecklistSection({
     );
 }
 
+function BpjsProgramSection({
+    programs,
+    onToggle,
+}: {
+    programs: BpjsProgram[];
+    onToggle: (programId: number, included: boolean) => void;
+}) {
+    if (programs.length === 0) {
+        return null;
+    }
+
+    return (
+        <div style={{ ...card, padding: 18, marginBottom: 16 }}>
+            <div style={sectionTitle}>
+                BPJS — pilih program yang dihitung
+            </div>
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 2,
+                }}
+            >
+                {programs.map((program) => (
+                    <label
+                        key={program.id}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 9,
+                            fontSize: 13,
+                            color: C.text,
+                            padding: '10px 6px',
+                            borderBottom: '1px solid ' + C.line,
+                            cursor: 'pointer',
+                        }}
+                    >
+                        <input
+                            type="checkbox"
+                            value="1"
+                            checked={program.included}
+                            onChange={(event) =>
+                                onToggle(program.id, event.target.checked)
+                            }
+                        />
+                        <span style={{ flex: 1 }}>{program.name}</span>
+                        <span style={{ color: C.muted, fontSize: 11 }}>
+                            {program.code}
+                        </span>
+                    </label>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 export default function MasterGajiSetting({
     master,
     components,
+    bpjsPrograms,
     dayCalcMethods,
     gradeOptions,
     salaries,
@@ -364,6 +429,7 @@ export default function MasterGajiSetting({
     // The component checklist is form state too, so nothing about the template
     // changes until Simpan is pressed.
     const [sheet, setSheet] = useState<Component[]>(components);
+    const [bpjsSheet, setBpjsSheet] = useState<BpjsProgram[]>(bpjsPrograms);
     const [amounts, setAmounts] = useState<Record<number, string>>(() =>
         Object.fromEntries(
             components.map((c) => [c.id, c.amount ? String(c.amount) : '']),
@@ -380,6 +446,13 @@ export default function MasterGajiSetting({
     const setAmount = (componentId: number, value: string) =>
         setAmounts((rows) => ({ ...rows, [componentId]: value }));
 
+    const setBpjsProgram = (programId: number, included: boolean) =>
+        setBpjsSheet((programs) =>
+            programs.map((program) =>
+                program.id === programId ? { ...program, included } : program,
+            ),
+        );
+
     const save = () => {
         form.transform((data) => ({
             ...data,
@@ -390,6 +463,10 @@ export default function MasterGajiSetting({
                 is_prorate: c.is_prorate,
                 is_kompensasi: c.is_kompensasi,
                 amount: Number(amounts[c.id]) || 0,
+            })),
+            bpjs_programs: bpjsSheet.map((program) => ({
+                bpjs_program_id: program.id,
+                included: program.included,
             })),
         }));
 
@@ -602,6 +679,11 @@ export default function MasterGajiSetting({
                     onFlag={setFlag}
                     onAmount={setAmount}
                     withAmount
+                />
+
+                <BpjsProgramSection
+                    programs={bpjsSheet}
+                    onToggle={setBpjsProgram}
                 />
 
                 {/* SETTING */}

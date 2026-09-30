@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Avana;
 
 use App\Http\Controllers\Controller;
+use App\Models\BpjsProgram;
 use App\Models\DayCalcMethod;
 use App\Models\Employee;
 use App\Models\PayrollComponent;
 use App\Models\SalaryChangeSet;
 use App\Models\SalaryGrade;
 use App\Models\SalaryMaster;
+use App\Models\SalaryMasterBpjsProgram;
 use App\Models\User;
 use App\Services\EmployeeSalaryWriter;
 use App\Support\BasicWageComponent;
@@ -79,6 +81,12 @@ class SalaryMasterController extends Controller
         $master->load('components');
 
         $flags = $master->components->keyBy('payroll_component_id');
+        $bpjsFlags = SalaryMasterBpjsProgram::query()
+            ->where('tenant_id', $tenantId)
+            ->where('salary_master_id', $master->id)
+            ->get()
+            ->keyBy('bpjs_program_id');
+        $hasSavedBpjsSelection = $bpjsFlags->isNotEmpty();
 
         // Only active components are offered: the documented setup ends with
         // "aktifkan komponen — setelah aktif, komponen otomatis tersedia untuk
@@ -125,6 +133,18 @@ class SalaryMasterController extends Controller
                 'employees_count' => $master->employees()->count(),
             ],
             'components' => $components,
+            'bpjsPrograms' => BpjsProgram::forTenant($tenantId)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'code', 'name'])
+                ->map(fn (BpjsProgram $program): array => [
+                    'id' => $program->id,
+                    'code' => $program->code,
+                    'name' => $program->name,
+                    'included' => $hasSavedBpjsSelection
+                        ? (bool) ($bpjsFlags[$program->id]->included ?? true)
+                        : true,
+                ])->all(),
             'dayCalcMethods' => DayCalcMethod::forTenant($tenantId)
                 ->where('is_active', true)
                 ->orderBy('name')
@@ -183,12 +203,17 @@ class SalaryMasterController extends Controller
 
         $data = $this->validateMaster($request, (int) $master->tenant_id, $master->id);
         $components = $this->validateComponents($request, (int) $master->tenant_id);
+        $bpjsPrograms = $this->validateBpjsPrograms($request, (int) $master->tenant_id);
 
-        DB::transaction(function () use ($master, $data, $request, $components): void {
+        DB::transaction(function () use ($master, $data, $request, $components, $bpjsPrograms): void {
             $master->update($this->masterAttributes($data, $request));
 
             if ($components !== null) {
                 $this->syncComponents($master, $components);
+            }
+
+            if ($bpjsPrograms !== null) {
+                $this->syncBpjsPrograms($master, $bpjsPrograms);
             }
         });
 
@@ -226,6 +251,29 @@ class SalaryMasterController extends Controller
     }
 
     /**
+     * @return list<array{bpjs_program_id: int, included: bool}>|null
+     */
+    private function validateBpjsPrograms(Request $request, int $tenantId): ?array
+    {
+        if (! is_array($request->input('bpjs_programs'))) {
+            return null;
+        }
+
+        $data = $request->validate([
+            'bpjs_programs' => ['array'],
+            'bpjs_programs.*.bpjs_program_id' => [
+                'required',
+                'integer',
+                'distinct:strict',
+                Rule::exists('bpjs_programs', 'id')->where('tenant_id', $tenantId),
+            ],
+            'bpjs_programs.*.included' => ['required', 'boolean'],
+        ]);
+
+        return $data['bpjs_programs'];
+    }
+
+    /**
      * Write the checklist onto the template: a row is kept while any flag is
      * set on it and dropped once every flag is cleared, so an unticked
      * component leaves nothing behind.
@@ -259,6 +307,40 @@ class SalaryMasterController extends Controller
             }
 
             $row->save();
+        }
+    }
+
+    /**
+     * Persist one selected/unselected row per BPJS program shown on the form.
+     *
+     * @param  list<array{bpjs_program_id: int, included: bool}>  $programs
+     */
+    private function syncBpjsPrograms(SalaryMaster $master, array $programs): void
+    {
+        $programIds = collect($programs)
+            ->pluck('bpjs_program_id')
+            ->map(fn (int $id): int => $id)
+            ->all();
+
+        $existingPrograms = SalaryMasterBpjsProgram::query()
+            ->where('tenant_id', $master->tenant_id)
+            ->where('salary_master_id', $master->id);
+
+        if ($programIds !== []) {
+            $existingPrograms->whereNotIn('bpjs_program_id', $programIds);
+        }
+
+        $existingPrograms->delete();
+
+        foreach ($programs as $program) {
+            SalaryMasterBpjsProgram::updateOrCreate(
+                [
+                    'tenant_id' => $master->tenant_id,
+                    'salary_master_id' => $master->id,
+                    'bpjs_program_id' => $program['bpjs_program_id'],
+                ],
+                ['included' => (bool) $program['included']],
+            );
         }
     }
 

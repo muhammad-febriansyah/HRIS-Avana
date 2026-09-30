@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Avana\PayrollController;
+use App\Models\BpjsProgram;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\EmployeeSalaryComponent;
@@ -9,6 +10,7 @@ use App\Models\PayrollPeriod;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\SalaryMaster;
+use App\Models\SalaryMasterBpjsProgram;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -90,6 +92,51 @@ it('computes the BPJS contribution from the components flagged as its base', fun
     $item = specRunItem($this);
 
     expect((float) $item->calculation_snapshot['bpjs']['base_wage'])->toBe(10_000_000.0);
+});
+
+it('limits BPJS payroll lines to programs selected by the assigned master', function (): void {
+    $programs = BpjsProgram::forTenant($this->tenant->id)
+        ->whereIn('code', ['JHT', 'JP', 'KESEHATAN'])
+        ->get();
+
+    foreach ($programs as $program) {
+        SalaryMasterBpjsProgram::create([
+            'tenant_id' => $this->tenant->id,
+            'salary_master_id' => $this->master->id,
+            'bpjs_program_id' => $program->id,
+            'included' => $program->code !== 'JHT',
+        ]);
+    }
+
+    specComponent($this, 'BASIC', 8_000_000, ['is_bpjs_base' => true]);
+
+    $programLines = specRunItem($this)->calculation_snapshot['bpjs']['programs'];
+
+    expect($programLines)->not->toHaveKey('jht')
+        ->and($programLines)->toHaveKey('jp')
+        ->and($programLines)->toHaveKey('kesehatan');
+});
+
+it('does not calculate BPJS when the assigned master excludes every program', function (): void {
+    $programs = BpjsProgram::forTenant($this->tenant->id)->get();
+
+    foreach ($programs as $program) {
+        SalaryMasterBpjsProgram::create([
+            'tenant_id' => $this->tenant->id,
+            'salary_master_id' => $this->master->id,
+            'bpjs_program_id' => $program->id,
+            'included' => false,
+        ]);
+    }
+
+    specComponent($this, 'BASIC', 8_000_000, ['is_bpjs_base' => true]);
+
+    $item = specRunItem($this);
+    $bpjs = $item->calculation_snapshot['bpjs'];
+
+    expect((float) $item->bpjs_employee_total)->toBe(0.0)
+        ->and((float) $item->bpjs_company_total)->toBe(0.0)
+        ->and($bpjs['programs'])->toBe([]);
 });
 
 it('falls back to the basic wage when no component is flagged', function (): void {
