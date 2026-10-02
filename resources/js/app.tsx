@@ -1,4 +1,5 @@
-import { createInertiaApp } from '@inertiajs/react';
+import { createInertiaApp, usePage } from '@inertiajs/react';
+import { useEffect } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
@@ -17,6 +18,26 @@ const platformName = import.meta.env.VITE_APP_NAME || 'AvanaHR';
  */
 interface TenantAuth {
     tenant?: { name?: string; company_name?: string | null } | null;
+}
+
+function PublicPageViewTracker() {
+    const { component } = usePage();
+
+    useEffect(() => {
+        if (component !== 'welcome' && !component.startsWith('public/')) {
+            return;
+        }
+
+        const fbq = (
+            window as Window & {
+                fbq?: (command: string, eventName: string) => void;
+            }
+        ).fbq;
+
+        fbq?.('track', 'ViewContent');
+    }, [component]);
+
+    return null;
 }
 
 createInertiaApp({
@@ -51,6 +72,7 @@ createInertiaApp({
     withApp(app) {
         return (
             <TooltipProvider delayDuration={0}>
+                <PublicPageViewTracker />
                 {app}
                 <Toaster />
             </TooltipProvider>

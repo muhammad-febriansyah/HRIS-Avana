@@ -1,5 +1,4 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { useEffect } from 'react';
 import {
     ArrowRight,
     BarChart3,
@@ -2532,23 +2531,6 @@ export default function Feature({
 }) {
     const page = getFeaturePage(featureSlug);
     const { website } = usePage().props;
-
-    useEffect(() => {
-        if (!page) {
-            return;
-        }
-
-        const fbq = (
-            window as Window & {
-                fbq?: (
-                    command: string,
-                    eventName: string,
-                ) => void;
-            }
-        ).fbq;
-
-        fbq?.('track', 'ViewContent');
-    }, [page?.name]);
 
     if (!page) {
         return null;
