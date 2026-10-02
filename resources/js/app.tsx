@@ -1,4 +1,4 @@
-import { createInertiaApp, usePage } from '@inertiajs/react';
+import { createInertiaApp, router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -20,10 +20,8 @@ interface TenantAuth {
     tenant?: { name?: string; company_name?: string | null } | null;
 }
 
-function PublicPageViewTracker() {
-    const { component } = usePage();
-
-    useEffect(() => {
+function PublicPageViewTracker({ initialComponent }: { initialComponent: string }) {
+    const trackPublicPageView = (component: string): void => {
         if (component !== 'welcome' && !component.startsWith('public/')) {
             return;
         }
@@ -35,7 +33,15 @@ function PublicPageViewTracker() {
         ).fbq;
 
         fbq?.('track', 'ViewContent');
-    }, [component]);
+    };
+
+    useEffect(() => {
+        trackPublicPageView(initialComponent);
+
+        return router.on('navigate', (event) => {
+            trackPublicPageView(event.detail.page.component);
+        });
+    }, [initialComponent]);
 
     return null;
 }
@@ -69,10 +75,10 @@ createInertiaApp({
         }
     },
     strictMode: true,
-    withApp(app) {
+    withApp(app, { page }) {
         return (
             <TooltipProvider delayDuration={0}>
-                <PublicPageViewTracker />
+                <PublicPageViewTracker initialComponent={page.component} />
                 {app}
                 <Toaster />
             </TooltipProvider>
