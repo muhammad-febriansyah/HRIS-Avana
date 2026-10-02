@@ -2543,16 +2543,11 @@ export default function Feature({
                 fbq?: (
                     command: string,
                     eventName: string,
-                    parameters: Record<string, string>,
                 ) => void;
             }
         ).fbq;
 
-        fbq?.('track', 'ViewContent', {
-            content_name: `${page.name} AvanaHR`,
-            content_category: 'HRIS Feature',
-            content_type: 'content',
-        });
+        fbq?.('track', 'ViewContent');
     }, [page?.name]);
 
     if (!page) {
