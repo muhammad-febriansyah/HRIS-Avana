@@ -1,53 +1,25 @@
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import { useEffect, useMemo } from 'react';
-import {
-    Circle,
-    MapContainer,
-    Marker,
-    Popup,
-    TileLayer,
-    Tooltip,
-    useMap,
-} from 'react-leaflet';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { loadGoogleMaps } from '@/lib/google-maps';
 import type { LocationMapProps, MapPoint } from './location-map';
 
-// Dropping `_getIconUrl` stops Leaflet from auto-prefixing its imagePath onto
-// these already-resolved Vite asset URLs (which 404s the marker images).
-delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })
-    ._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: markerIcon2x,
-    iconUrl: markerIcon,
-    shadowUrl: markerShadow,
-});
+type MapOverlay = {
+    setMap?: (map: google.maps.Map | null) => void;
+    close?: () => void;
+};
 
-/** Fits the map viewport to every provided point once, on mount/update. */
-function FitBounds({ points }: { points: MapPoint[] }) {
-    const map = useMap();
+function boundsForPoints(
+    maps: typeof google,
+    points: MapPoint[],
+): google.maps.LatLngBounds {
+    const bounds = new maps.maps.LatLngBounds();
 
-    useEffect(() => {
-        if (points.length === 0) {
-            return;
-        }
+    points.forEach((point) =>
+        bounds.extend({ lat: point.lat, lng: point.lng }),
+    );
 
-        const bounds = L.latLngBounds(
-            points.map((p) => [p.lat, p.lng] as [number, number]),
-        );
-        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
-    }, [map, points]);
-
-    return null;
+    return bounds;
 }
 
-/**
- * Browser-only Leaflet map. Split out from `location-map.tsx` because Leaflet
- * touches `window` at import time, which crashes server-side rendering. The
- * wrapper lazy-loads this chunk only after the client has mounted.
- */
 export default function LocationMapClient({
     points,
     area,
@@ -56,17 +28,128 @@ export default function LocationMapClient({
     fit = false,
     labels = false,
 }: LocationMapProps) {
-    const center = useMemo<[number, number]>(() => {
+    const mapElement = useRef<HTMLDivElement>(null);
+    const overlaysRef = useRef<MapOverlay[]>([]);
+    const [map, setMap] = useState<google.maps.Map | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const center = useMemo(() => {
         if (area) {
-            return [area.lat, area.lng];
+            return { lat: area.lat, lng: area.lng };
         }
 
-        if (points.length > 0) {
-            return [points[0].lat, points[0].lng];
-        }
-
-        return [-6.1754, 106.8272];
+        return points[0]
+            ? { lat: points[0].lat, lng: points[0].lng }
+            : { lat: -6.1754, lng: 106.8272 };
     }, [area, points]);
+
+    useEffect(() => {
+        let active = true;
+
+        void loadGoogleMaps()
+            .then((maps) => {
+                if (!active || !mapElement.current) {
+                    return;
+                }
+
+                setMap(
+                    new maps.maps.Map(mapElement.current, {
+                        center,
+                        zoom,
+                        mapTypeControl: false,
+                        streetViewControl: false,
+                        fullscreenControl: false,
+                    }),
+                );
+            })
+            .catch((reason: unknown) => {
+                if (active) {
+                    setError(
+                        reason instanceof Error
+                            ? reason.message
+                            : 'Google Maps gagal dimuat.',
+                    );
+                }
+            });
+
+        return () => {
+            active = false;
+            overlaysRef.current.forEach((overlay) => {
+                overlay.setMap?.(null);
+                overlay.close?.();
+            });
+            overlaysRef.current = [];
+        };
+        // Map instance initializes once per mounted component.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        if (!map || !window.google?.maps) {
+            return;
+        }
+
+        overlaysRef.current.forEach((overlay) => {
+            overlay.setMap?.(null);
+            overlay.close?.();
+        });
+        overlaysRef.current = [];
+
+        if (fit && points.length > 0) {
+            map.fitBounds(boundsForPoints(window.google, points), 40);
+        } else {
+            map.setCenter(center);
+            map.setZoom(zoom);
+        }
+
+        if (area && area.radius > 0) {
+            overlaysRef.current.push(
+                new google.maps.Circle({
+                    map,
+                    center: { lat: area.lat, lng: area.lng },
+                    radius: area.radius,
+                    strokeColor: '#2563EB',
+                    fillColor: '#3B82F6',
+                    fillOpacity: 0.12,
+                }),
+            );
+        }
+
+        const infoWindow = new google.maps.InfoWindow();
+
+        points.forEach((point) => {
+            const marker = new google.maps.Marker({
+                map,
+                position: { lat: point.lat, lng: point.lng },
+                label: labels && point.label ? point.label : undefined,
+            });
+
+            if (point.label) {
+                const content = document.createElement('div');
+                const title = document.createElement('strong');
+                title.textContent = point.label;
+                title.style.display = 'block';
+                title.style.marginBottom = '4px';
+                content.append(title);
+
+                point.details?.forEach((detail) => {
+                    const row = document.createElement('div');
+                    row.textContent = detail;
+                    row.style.color = '#64748B';
+                    row.style.fontSize = '12px';
+                    content.append(row);
+                });
+
+                marker.addListener('click', () => {
+                    infoWindow.setContent(content);
+                    infoWindow.open({ map, anchor: marker });
+                });
+            }
+
+            overlaysRef.current.push(marker);
+        });
+
+        overlaysRef.current.push(infoWindow);
+    }, [area, center, fit, labels, map, points, zoom]);
 
     const frame: React.CSSProperties = {
         height,
@@ -77,44 +160,16 @@ export default function LocationMapClient({
 
     return (
         <div style={frame}>
-            <MapContainer
-                center={center}
-                zoom={zoom}
-                style={{ height: '100%', width: '100%' }}
-                scrollWheelZoom
-            >
-                {fit && <FitBounds points={points} />}
-                <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            {error ? (
+                <div className="flex h-full items-center justify-center bg-slate-100 px-4 text-center text-sm text-slate-500">
+                    {error}
+                </div>
+            ) : (
+                <div
+                    ref={mapElement}
+                    style={{ height: '100%', width: '100%' }}
                 />
-                {area && area.radius > 0 && (
-                    <Circle
-                        center={[area.lat, area.lng]}
-                        radius={area.radius}
-                        pathOptions={{
-                            color: '#2563EB',
-                            fillColor: '#3B82F6',
-                            fillOpacity: 0.12,
-                        }}
-                    />
-                )}
-                {points.map((point, index) => (
-                    <Marker
-                        key={`${point.lat},${point.lng},${index}`}
-                        position={[point.lat, point.lng]}
-                    >
-                        {point.label &&
-                            (labels ? (
-                                <Tooltip permanent direction="top">
-                                    {point.label}
-                                </Tooltip>
-                            ) : (
-                                <Popup>{point.label}</Popup>
-                            ))}
-                    </Marker>
-                ))}
-            </MapContainer>
+            )}
         </div>
     );
 }

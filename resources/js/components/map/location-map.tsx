@@ -4,6 +4,7 @@ export interface MapPoint {
     lat: number;
     lng: number;
     label?: string;
+    details?: string[];
 }
 
 export interface LocationMapProps {
@@ -23,15 +24,15 @@ export interface LocationMapProps {
     labels?: boolean;
 }
 
-// Leaflet reaches for `window` at import time, so the actual map lives in a
-// separate chunk that is only imported on the client, after mount. This keeps
-// the module tree server-render safe (Inertia SSR).
+// Google Maps touches browser globals, so the actual map lives in a separate
+// chunk that is only imported on the client, after mount. This keeps the
+// module tree server-render safe (Inertia SSR).
 const LocationMapClient = lazy(() => import('./location-map.client'));
 
 /**
  * Read-only map used to visualize attendance points against a work location's
  * geofence. Renders a placeholder on the server and until the client mounts,
- * then swaps in the Leaflet map.
+ * then swaps in the Google Maps map.
  */
 export function LocationMap(props: LocationMapProps) {
     const height = props.height ?? 300;

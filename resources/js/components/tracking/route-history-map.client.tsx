@@ -1,32 +1,13 @@
-import 'leaflet/dist/leaflet.css';
-import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
-import L from 'leaflet';
-import { useEffect, useMemo, useRef } from 'react';
-import { MapContainer, Polyline, TileLayer, useMap } from 'react-leaflet';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { loadGoogleMaps } from '@/lib/google-maps';
 import {
     FullscreenButton,
-    FullscreenSync,
     useFullscreenToggle,
 } from './fullscreen-control.client';
 import { RoadRoute, sampleWaypoints } from './road-route.client';
 import type { RoutePoint } from './route-history-map';
 
-function FitRoute({ points }: { points: RoutePoint[] }) {
-    const map = useMap();
-
-    useEffect(() => {
-        if (points.length > 0) {
-            map.fitBounds(
-                L.latLngBounds(
-                    points.map((point) => [point.latitude, point.longitude]),
-                ),
-                { padding: [48, 48], maxZoom: 17 },
-            );
-        }
-    }, [map, points]);
-
-    return null;
-}
+type MapOverlay = { setMap?: (map: google.maps.Map | null) => void };
 
 export default function RouteHistoryMapClient({
     points,
@@ -35,15 +16,100 @@ export default function RouteHistoryMapClient({
     points: RoutePoint[];
     height: number;
 }) {
-    const center: [number, number] = points[0]
-        ? [points[0].latitude, points[0].longitude]
-        : [-6.1754, 106.8272];
-    const route = points.map(
-        (point) => [point.latitude, point.longitude] as [number, number],
+    const containerRef = useRef<HTMLDivElement>(null);
+    const mapElement = useRef<HTMLDivElement>(null);
+    const mapRef = useRef<google.maps.Map | null>(null);
+    const overlaysRef = useRef<MapOverlay[]>([]);
+    const [map, setMap] = useState<google.maps.Map | null>(null);
+    const { isFullscreen, toggle } = useFullscreenToggle(containerRef);
+    const route = useMemo(
+        () =>
+            points.map((point) => ({
+                lat: point.latitude,
+                lng: point.longitude,
+            })),
+        [points],
     );
     const waypoints = useMemo(() => sampleWaypoints(points, 8), [points]);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const { isFullscreen, toggle } = useFullscreenToggle(containerRef);
+
+    useEffect(() => {
+        let active = true;
+
+        void loadGoogleMaps().then((maps) => {
+            if (!active || !mapElement.current) {
+                return;
+            }
+
+            const instance = new maps.maps.Map(mapElement.current, {
+                center: route[0] ?? { lat: -6.1754, lng: 106.8272 },
+                zoom: 14,
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: false,
+            });
+            mapRef.current = instance;
+            setMap(instance);
+        });
+
+        return () => {
+            active = false;
+            overlaysRef.current.forEach((overlay) => overlay.setMap?.(null));
+            overlaysRef.current = [];
+            mapRef.current = null;
+        };
+        // Map instance initializes once after browser mount.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        if (!map) {
+            return;
+        }
+
+        overlaysRef.current.forEach((overlay) => overlay.setMap?.(null));
+        overlaysRef.current = [];
+
+        if (route.length > 0) {
+            const bounds = new google.maps.LatLngBounds();
+            route.forEach((point) => bounds.extend(point));
+            map.fitBounds(bounds, 48);
+        }
+
+        if (route.length > 1) {
+            overlaysRef.current.push(
+                new google.maps.Polyline({
+                    map,
+                    path: route,
+                    strokeColor: '#93C5FD',
+                    strokeOpacity: 0.6,
+                    strokeWeight: 3,
+                    icons: [
+                        {
+                            icon: {
+                                path: 'M 0,-1 0,1',
+                                strokeOpacity: 1,
+                                scale: 2,
+                            },
+                            offset: '0',
+                            repeat: '12px',
+                        },
+                    ],
+                }),
+            );
+        }
+    }, [map, route]);
+
+    useEffect(() => {
+        if (!map) {
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            google.maps.event.trigger(map, 'resize');
+        }, 80);
+
+        return () => window.clearTimeout(timer);
+    }, [isFullscreen, map]);
 
     return (
         <div
@@ -51,41 +117,16 @@ export default function RouteHistoryMapClient({
             className="relative overflow-hidden rounded-xl border border-slate-200 bg-white"
             style={{ height: isFullscreen ? '100vh' : height }}
         >
-            <MapContainer
-                center={center}
-                zoom={14}
-                style={{ height: '100%', width: '100%' }}
-                scrollWheelZoom
-            >
-                <FitRoute points={points} />
-                <FullscreenSync isFullscreen={isFullscreen} />
-                <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            <div ref={mapElement} className="h-full w-full" />
+            {map && waypoints.length > 1 && (
+                <RoadRoute
+                    map={map}
+                    waypoints={waypoints}
+                    color="#2563EB"
+                    startLabel="Mulai"
+                    endLabel="Selesai"
                 />
-                {/* Raw GPS trail — actual recorded points, straight lines between them. */}
-                {route.length > 1 && (
-                    <Polyline
-                        positions={route}
-                        pathOptions={{
-                            color: '#93C5FD',
-                            weight: 3,
-                            opacity: 0.6,
-                            dashArray: '4 6',
-                        }}
-                    />
-                )}
-                {/* Road-snapped route through the same trail, via OSRM, with
-                    the full turn-by-turn itinerary UI. */}
-                {waypoints.length > 1 && (
-                    <RoadRoute
-                        waypoints={waypoints}
-                        color="#2563EB"
-                        startLabel="Mulai"
-                        endLabel="Selesai"
-                    />
-                )}
-            </MapContainer>
+            )}
             <FullscreenButton isFullscreen={isFullscreen} onToggle={toggle} />
         </div>
     );

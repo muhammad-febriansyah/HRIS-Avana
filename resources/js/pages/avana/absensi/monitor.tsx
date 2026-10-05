@@ -1,4 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { DatePicker } from '@/components/avana/date-picker';
 import { LocationMap } from '@/components/map/location-map';
@@ -54,6 +55,21 @@ interface MonitorProps {
 /** Map viewport height; the activity feed is capped to match it. */
 const MAP_HEIGHT = 480;
 
+const DEMO_MAP_POINTS: MonitorPoint[] = [
+    {
+        lat: -6.1754,
+        lng: 106.8272,
+        label: 'Demo Google Maps',
+        status: 'present',
+    },
+    {
+        lat: -6.1931,
+        lng: 106.823,
+        label: 'Demo Kantor Selatan',
+        status: 'late',
+    },
+];
+
 /** Colour a check-in status pill/dot. */
 function statusColor(status: string): string {
     switch (status) {
@@ -67,6 +83,25 @@ function statusColor(status: string): string {
             return C.primary;
         default:
             return C.faint;
+    }
+}
+
+function attendanceStatusLabel(status: string): string {
+    switch (status) {
+        case 'present':
+            return 'Hadir';
+        case 'late':
+            return 'Terlambat';
+        case 'absent':
+            return 'Alpa';
+        case 'leave':
+            return 'Cuti';
+        case 'incomplete':
+            return 'Belum Lengkap';
+        case 'need_correction':
+            return 'Perlu Koreksi';
+        default:
+            return status;
     }
 }
 
@@ -131,6 +166,32 @@ export default function AbsensiMonitor({
     points,
     activity,
 }: MonitorProps) {
+    const [isMapDemo, setIsMapDemo] = useState(false);
+
+    useEffect(() => {
+        const isLocalhost = ['localhost', '127.0.0.1'].includes(
+            window.location.hostname,
+        );
+        const queryRequestsDemo =
+            new URLSearchParams(window.location.search).get('map_demo') === '1';
+
+        // Local-only demo toggle runs after hydration to keep SSR markup stable.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setIsMapDemo(isLocalhost && (queryRequestsDemo || points.length === 0));
+    }, [points.length]);
+
+    const mapPoints = useMemo(
+        () =>
+            (isMapDemo ? DEMO_MAP_POINTS : points).map((point) => ({
+                ...point,
+                details: [
+                    `Status: ${attendanceStatusLabel(point.status)}`,
+                    `Koordinat: ${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}`,
+                ],
+            })),
+        [isMapDemo, points],
+    );
+
     const rowStyle: CSSProperties = {
         display: 'flex',
         gap: 12,
@@ -328,22 +389,21 @@ export default function AbsensiMonitor({
                     checked in with GPS; otherwise the activity feed takes the
                     full width so an empty day never shows a blank map box. */}
                 <div
-                    className={points.length > 0 ? 'avn-2col' : undefined}
+                    className={mapPoints.length > 0 ? 'avn-2col' : undefined}
                     style={{
                         display: 'grid',
                         gridTemplateColumns:
-                            points.length > 0 ? '1.6fr 1fr' : '1fr',
+                            mapPoints.length > 0 ? '1.6fr 1fr' : '1fr',
                         gap: 18,
                         alignItems: 'start',
                     }}
                 >
-                    {points.length > 0 && (
+                    {mapPoints.length > 0 && (
                         <div style={{ ...card, padding: 14 }}>
                             <LocationMap
-                                points={points}
+                                points={mapPoints}
                                 height={MAP_HEIGHT}
                                 fit
-                                labels
                             />
                         </div>
                     )}

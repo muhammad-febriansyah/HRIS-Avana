@@ -33,8 +33,9 @@ test('enforcing the policy moves it to the blocking header', function () {
 test('the map and font hosts the app actually uses are allowed', function () {
     $policy = (string) $this->get('/login')->headers->get('Content-Security-Policy-Report-Only');
 
-    expect($policy)->toContain('https://*.tile.openstreetmap.org')
-        ->toContain('https://routing.openstreetmap.de')
+    expect($policy)->toContain('https://maps.googleapis.com')
+        ->toContain('https://maps.gstatic.com')
+        ->toContain('https://*.googleapis.com')
         ->toContain('https://fonts.googleapis.com');
 });
 

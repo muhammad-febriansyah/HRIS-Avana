@@ -184,9 +184,9 @@ export function MapCanvas({
                 <Marker key={marker.id} marker={marker} />
             ))}
 
-            {/* Attribution, because the styling follows OpenStreetMap's look. */}
+            {/* Decorative illustration; live map screens use Google Maps. */}
             <span className="absolute right-2 bottom-1.5 rounded bg-white/75 px-1.5 py-0.5 text-[9px] text-[#8A93A6]">
-                Tampilan peta bergaya OpenStreetMap
+                Tampilan peta ilustratif
             </span>
         </div>
     );

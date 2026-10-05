@@ -67,8 +67,7 @@ return [
          * every entry is a place a compromised page is allowed to send data.
          *
          *  - fonts.googleapis.com / fonts.gstatic.com — the Poppins webfont
-         *  - *.tile.openstreetmap.org — Leaflet map tiles
-         *  - routing.openstreetmap.de — the walking-route API on tracking maps
+         *  - Google Maps hosts — map tiles, scripts, and Directions API
          *  - ik.imagekit.io — marketing page imagery
          */
         'directives' => [
@@ -77,14 +76,38 @@ return [
             'object-src' => ["'none'"],
             'frame-ancestors' => ["'none'"],
             'form-action' => ["'self'"],
-            'script-src' => ["'self'"],
+            'script-src' => [
+                "'self'",
+                'https://maps.googleapis.com',
+                'https://maps.gstatic.com',
+                'https://www.googletagmanager.com',
+                'https://www.google-analytics.com',
+                'https://connect.facebook.net',
+            ],
             // 'unsafe-inline' is unavoidable here: the root Blade view paints
-            // the surface colour before first paint with an inline <style>, and
-            // Leaflet writes inline styles on every marker it positions.
+            // the surface colour before first paint with an inline <style>.
             'style-src' => ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
             'font-src' => ["'self'", 'data:', 'https://fonts.gstatic.com'],
-            'img-src' => ["'self'", 'data:', 'blob:', 'https://*.tile.openstreetmap.org', 'https://ik.imagekit.io'],
-            'connect-src' => ["'self'", 'https://routing.openstreetmap.de', 'https://*.tile.openstreetmap.org'],
+            'connect-src' => [
+                "'self'",
+                'https://*.google.com',
+                'https://*.googleapis.com',
+                'https://*.gstatic.com',
+                'https://www.google-analytics.com',
+                'https://region1.google-analytics.com',
+                'https://*.a.run.app',
+            ],
+            'img-src' => [
+                "'self'",
+                'data:',
+                'blob:',
+                'https://*.google.com',
+                'https://*.googleapis.com',
+                'https://*.gstatic.com',
+                'https://www.googletagmanager.com',
+                'https://www.facebook.com',
+                'https://ik.imagekit.io',
+            ],
             'media-src' => ["'self'", 'blob:', 'data:'],
             'worker-src' => ["'self'", 'blob:'],
             'manifest-src' => ["'self'"],
