@@ -78,9 +78,12 @@ class DashboardController extends Controller
         $user = $request->user();
         $user->loadMissing('roles');
 
-        // Super admins operate across every tenant, so they get a platform
-        // (SaaS) dashboard instead of the tenant-scoped HR one.
-        if ($user->roles->pluck('code')->contains('super_admin')) {
+        // Super admins get the platform dashboard until they choose a tenant
+        // in the "view as tenant" switcher. While viewing one, use its HR data.
+        $isSuperAdmin = $user->roles->pluck('code')->contains('super_admin');
+        $isViewingTenant = (int) $request->session()->get('view_tenant_id', 0) > 0;
+
+        if ($isSuperAdmin && ! $isViewingTenant) {
             return $this->superAdminDashboard($request);
         }
 

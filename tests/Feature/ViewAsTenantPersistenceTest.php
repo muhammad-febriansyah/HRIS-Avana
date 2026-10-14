@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
@@ -46,10 +47,18 @@ it('keeps the profile edit itself working while viewing another tenant', functio
 });
 
 it('still shows the viewed tenant data during the request', function (): void {
+    $activeEmployeeCount = Employee::forTenant($this->otherTenant->id)
+        ->where('status', 'active')
+        ->count();
+
     $this->actingAs($this->superAdmin)
         ->withSession(['view_tenant_id' => $this->otherTenant->id])
         ->get('/dashboard')
-        ->assertOk();
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('dashboard')
+            ->where('kpis.0.label', 'Total Karyawan')
+            ->where('kpis.0.value', number_format($activeEmployeeCount, 0, ',', '.')));
 
     // The override is for the request only; nothing is written back.
     expect($this->superAdmin->fresh()->tenant_id)->toBe($this->homeTenantId);
