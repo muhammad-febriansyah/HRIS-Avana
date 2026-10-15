@@ -20,15 +20,6 @@ const VARIANTS = {
 
 type Variant = keyof typeof VARIANTS;
 
-/** Meta Pixel conversion signal for a CTA click; a no-op when the pixel is not loaded. */
-function trackAddToCart(): void {
-    (
-        window as Window & {
-            fbq?: (command: string, eventName: string) => void;
-        }
-    ).fbq?.('track', 'AddToCart');
-}
-
 function CtaLink({
     href,
     external,
@@ -49,7 +40,6 @@ function CtaLink({
             <a
                 href={href}
                 className={classes}
-                onClick={trackAddToCart}
                 {...(external
                     ? { target: '_blank', rel: 'noopener noreferrer' }
                     : {})}
@@ -60,7 +50,7 @@ function CtaLink({
     }
 
     return (
-        <Link href={href} className={classes} onClick={trackAddToCart}>
+        <Link href={href} className={classes}>
             {children}
         </Link>
     );

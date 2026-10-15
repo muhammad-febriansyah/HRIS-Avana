@@ -34,6 +34,7 @@
             'https://connect.facebook.net/en_US/fbevents.js');
             fbq('init', '1423275373087087');
             fbq('track', 'PageView');
+            fbq('track', 'AddToCart');
         </script>
         <!-- End Meta Pixel Code -->
 
