@@ -1,5 +1,5 @@
 import { createInertiaApp, router } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
@@ -21,6 +21,8 @@ interface TenantAuth {
 }
 
 function PublicPageViewTracker({ initialComponent }: { initialComponent: string }) {
+    const initialViewTracked = useRef(false);
+
     const trackPublicPageView = (component: string): void => {
         if (component !== 'welcome' && !component.startsWith('public/')) {
             return;
@@ -36,7 +38,10 @@ function PublicPageViewTracker({ initialComponent }: { initialComponent: string 
     };
 
     useEffect(() => {
-        trackPublicPageView(initialComponent);
+        if (!initialViewTracked.current) {
+            initialViewTracked.current = true;
+            trackPublicPageView(initialComponent);
+        }
 
         return router.on('navigate', (event) => {
             trackPublicPageView(event.detail.page.component);
