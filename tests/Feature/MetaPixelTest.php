@@ -8,5 +8,6 @@ test('sends the AddToCart event from the Meta Pixel code in the page head', func
         ->assertSeeInOrder([
             "fbq('track', 'PageView');",
             "fbq('track', 'AddToCart');",
+            "fbq('track', 'Lead');",
         ], false);
 });

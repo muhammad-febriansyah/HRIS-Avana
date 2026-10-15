@@ -35,6 +35,7 @@
             fbq('init', '1423275373087087');
             fbq('track', 'PageView');
             fbq('track', 'AddToCart');
+            fbq('track', 'Lead');
         </script>
         <!-- End Meta Pixel Code -->
 
