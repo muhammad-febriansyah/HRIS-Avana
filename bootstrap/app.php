@@ -14,7 +14,6 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\PostTooLargeException;
-use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -45,7 +44,6 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureSubscriptionActive::class,
             EnsureOnboardingComplete::class,
             HandleInertiaRequests::class,
-            AddLinkHeadersForPreloadedAssets::class,
         ]);
 
         // A lapsed tenant is locked out of the mobile API too, not just the web

@@ -1,5 +1,6 @@
 import { createInertiaApp, router } from '@inertiajs/react';
 import { useEffect, useRef } from 'react';
+import { NavigationLoader } from '@/components/navigation-loader';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
@@ -20,7 +21,11 @@ interface TenantAuth {
     tenant?: { name?: string; company_name?: string | null } | null;
 }
 
-function PublicPageViewTracker({ initialComponent }: { initialComponent: string }) {
+function PublicPageViewTracker({
+    initialComponent,
+}: {
+    initialComponent: string;
+}) {
     const initialViewTracked = useRef(false);
 
     const trackPublicPageView = (component: string): void => {
@@ -85,13 +90,13 @@ createInertiaApp({
             <TooltipProvider delayDuration={0}>
                 <PublicPageViewTracker initialComponent={page.component} />
                 {app}
+                <NavigationLoader />
                 <Toaster />
             </TooltipProvider>
         );
     },
-    progress: {
-        color: '#4B5563',
-    },
+    // Replaced by <NavigationLoader />.
+    progress: false,
 });
 
 // AvanaHR is light-only; ensure the document is never left in dark mode.
