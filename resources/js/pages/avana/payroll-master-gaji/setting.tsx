@@ -43,13 +43,11 @@ function MembershipRow({
     amount,
     onAmount,
     onToggle,
-    onBpjsExempt,
 }: {
     c: Component;
     amount: string;
     onAmount: (value: string) => void;
     onToggle: (checked: boolean) => void;
-    onBpjsExempt: (checked: boolean) => void;
 }) {
     return (
         <div
@@ -78,29 +76,6 @@ function MembershipRow({
                         gap: 4,
                     }}
                 >
-                    {c.is_bpjs_base && (
-                        <label
-                            title="Komponen ini tidak masuk basis iuran BPJS untuk Master Gaji ini"
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                color: C.muted,
-                                fontSize: 11,
-                                whiteSpace: 'nowrap',
-                                cursor: 'pointer',
-                            }}
-                        >
-                            <input
-                                type="checkbox"
-                                checked={c.is_bpjs_exempt}
-                                onChange={(e) =>
-                                    onBpjsExempt(e.target.checked)
-                                }
-                            />
-                            Tanpa BPJS
-                        </label>
-                    )}
                     <RupiahInput
                         style={{ ...input, width: 140, textAlign: 'right' }}
                         value={amount}
@@ -291,9 +266,6 @@ function ChecklistSection({
                             amount={amounts[c.id] ?? ''}
                             onAmount={(value) => onAmount(c.id, value)}
                             onToggle={(checked) => toggle(c, checked)}
-                            onBpjsExempt={(checked) =>
-                                onFlag(c.id, 'is_bpjs_exempt', checked)
-                            }
                         />
                     ) : (
                         <label
