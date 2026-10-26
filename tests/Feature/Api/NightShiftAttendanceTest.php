@@ -191,3 +191,45 @@ it('does not flag an ordinary day shift as crossing midnight', function (): void
 
     expect($day['crosses_midnight'])->toBeFalse();
 });
+
+it('keeps offering clock-out after midnight for a 15:00-01:00 shift', function (): void {
+    $sore = Shift::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'code' => 'SORE-T', 'name' => 'Sore',
+        'start_time' => '15:00:00', 'end_time' => '01:00:00',
+        'late_tolerance_minutes' => 10, 'status' => 'active',
+    ]);
+
+    ShiftSchedule::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'employee_id' => $this->employee->id,
+        'shift_id' => $sore->id,
+        'date' => $this->night,
+    ]);
+
+    ($this->punch)($this->night.' 15:02:00', 'in')->assertOk();
+
+    foreach (['2026-08-11 00:30:00', '2026-08-11 01:40:00'] as $at) {
+        Carbon::setTestNow(Carbon::parse($at));
+
+        ($this->auth)()
+            ->getJson('/api/v1/me/attendance/today')
+            ->assertOk()
+            ->assertJsonPath('data.next_action', 'out');
+    }
+
+    ($this->punch)('2026-08-11 01:40:00', 'out')->assertOk();
+});
+
+it('keeps offering clock-out after midnight when the day was never rostered', function (): void {
+    ($this->punch)($this->night.' 15:02:00', 'in')->assertOk();
+
+    Carbon::setTestNow(Carbon::parse('2026-08-11 00:30:00'));
+
+    ($this->auth)()
+        ->getJson('/api/v1/me/attendance/today')
+        ->assertOk()
+        ->assertJsonPath('data.next_action', 'out');
+
+    ($this->punch)('2026-08-11 00:30:00', 'out')->assertOk();
+});

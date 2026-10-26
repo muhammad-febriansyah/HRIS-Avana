@@ -40,6 +40,9 @@ class AttendanceController extends Controller
 {
     use ResolvesApiEmployee;
 
+    /** How long a clock-in stays "today's" when it is still unclosed. */
+    private const OPEN_SHIFT_WINDOW_HOURS = 16;
+
     public function __construct(
         private readonly FaceScanLogger $scanLogger,
         private readonly FaceRecognitionService $faceRecognition,
@@ -863,9 +866,28 @@ class AttendanceController extends Controller
 
         // Mid-shift at 02:00, a night worker's day is still yesterday's roster
         // row — reading today's would show them as not yet clocked in.
+        $now = Carbon::now($zone);
+
+        $record = Attendance::forTenant($tenantId)
+            ->where('employee_id', $employeeId)
+            ->whereDate('date', Roster::workDateFor($tenantId, $employeeId, $now))
+            ->first();
+
+        if ($record !== null) {
+            return $record;
+        }
+
+        // A shift that runs past its end time, or a day that was never
+        // rostered, leaves the roster lookup pointing at a row that does not
+        // exist yet — while the clock-in from this afternoon is still open.
+        // Showing "clock in" then would strand the worker, so a punch-in from
+        // the last few hours that has not been closed is still today's.
         return Attendance::forTenant($tenantId)
             ->where('employee_id', $employeeId)
-            ->whereDate('date', Roster::workDateFor($tenantId, $employeeId, Carbon::now($zone)))
+            ->whereNotNull('clock_in_at')
+            ->whereNull('clock_out_at')
+            ->where('clock_in_at', '>=', $now->copy()->subHours(self::OPEN_SHIFT_WINDOW_HOURS))
+            ->orderByDesc('clock_in_at')
             ->first();
     }
 
