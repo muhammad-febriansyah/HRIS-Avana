@@ -40,6 +40,11 @@ export default function WebsiteSettings({ settings }: PageProps) {
         contact_address: settings.contact_address ?? '',
         playstore_url: settings.playstore_url ?? '',
         appstore_url: settings.appstore_url ?? '',
+        android_latest_version: settings.android_latest_version ?? '',
+        android_min_version: settings.android_min_version ?? '',
+        ios_latest_version: settings.ios_latest_version ?? '',
+        ios_min_version: settings.ios_min_version ?? '',
+        app_update_notes: settings.app_update_notes ?? '',
         privacy_policy: settings.privacy_policy ?? '',
         terms_of_service: settings.terms_of_service ?? '',
         account_deletion: settings.account_deletion ?? '',
@@ -485,6 +490,98 @@ export default function WebsiteSettings({ settings }: PageProps) {
                                         placeholder:
                                             'https://apps.apple.com/app/...',
                                     })}
+                                </Field>
+                            </div>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    color: C.muted,
+                                    lineHeight: 1.6,
+                                    paddingTop: 6,
+                                    borderTop: `1px solid ${C.line}`,
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        fontWeight: 600,
+                                        color: C.navy,
+                                        margin: '12px 0 4px',
+                                    }}
+                                >
+                                    Notifikasi Update
+                                </div>
+                                Aplikasi menampilkan popup update saat versinya
+                                lebih lama dari <b>Versi Terbaru</b> (bisa
+                                ditutup). Di bawah <b>Versi Minimum</b>, popup
+                                tidak bisa ditutup dan karyawan wajib update.
+                                Isi sesudah versinya sudah tayang di store, dan
+                                kosongkan untuk mematikan.
+                            </div>
+                            <div
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 1fr',
+                                    gap: 18,
+                                }}
+                            >
+                                <Field
+                                    label="Android — Versi Terbaru"
+                                    hint="Contoh: 1.0.5"
+                                    error={form.errors.android_latest_version}
+                                >
+                                    {text('android_latest_version', {
+                                        placeholder: '1.0.5',
+                                    })}
+                                </Field>
+                                <Field
+                                    label="Android — Versi Minimum"
+                                    hint="Di bawah ini wajib update"
+                                    error={form.errors.android_min_version}
+                                >
+                                    {text('android_min_version', {
+                                        placeholder: '1.0.0',
+                                    })}
+                                </Field>
+                                <Field
+                                    label="iOS — Versi Terbaru"
+                                    hint="Contoh: 1.0.5"
+                                    error={form.errors.ios_latest_version}
+                                >
+                                    {text('ios_latest_version', {
+                                        placeholder: '1.0.5',
+                                    })}
+                                </Field>
+                                <Field
+                                    label="iOS — Versi Minimum"
+                                    hint="Di bawah ini wajib update"
+                                    error={form.errors.ios_min_version}
+                                >
+                                    {text('ios_min_version', {
+                                        placeholder: '1.0.0',
+                                    })}
+                                </Field>
+                                <Field
+                                    label="Catatan Update"
+                                    hint="Ditampilkan di popup, satu poin per baris"
+                                    error={form.errors.app_update_notes}
+                                    full
+                                >
+                                    <textarea
+                                        value={form.data.app_update_notes}
+                                        onChange={(event) =>
+                                            form.setData(
+                                                'app_update_notes',
+                                                event.target.value,
+                                            )
+                                        }
+                                        placeholder={
+                                            'Absen lebih cepat membaca lokasi\nPerbaikan tampilan slip gaji'
+                                        }
+                                        style={withError(
+                                            textareaStyle,
+                                            !!form.errors.app_update_notes,
+                                        )}
+                                    />
                                 </Field>
                             </div>
                         </div>

@@ -190,6 +190,33 @@ final class WebsiteSetting extends Model
     }
 
     /**
+     * What the mobile app needs to decide whether to offer or require a store
+     * update, per platform. Null versions mean "never prompt".
+     *
+     * @return array{
+     *     android: array{latest_version: string|null, min_version: string|null, store_url: string|null},
+     *     ios: array{latest_version: string|null, min_version: string|null, store_url: string|null},
+     *     notes: string|null
+     * }
+     */
+    public function toAppUpdateArray(): array
+    {
+        return [
+            'android' => [
+                'latest_version' => $this->android_latest_version,
+                'min_version' => $this->android_min_version,
+                'store_url' => $this->playstore_url,
+            ],
+            'ios' => [
+                'latest_version' => $this->ios_latest_version,
+                'min_version' => $this->ios_min_version,
+                'store_url' => $this->appstore_url,
+            ],
+            'notes' => $this->app_update_notes,
+        ];
+    }
+
+    /**
      * Public URL for a stored relative path (null-safe).
      */
     private function fileUrl(?string $path): ?string

@@ -208,3 +208,41 @@ it('shares branding as an inertia prop for the frontend', function (): void {
             ->has('website.social.instagram')
             ->has('website.social.linkedin'));
 });
+
+it('saves the mobile app update versions', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.website-settings.update'), [
+            'android_latest_version' => '1.0.5',
+            'android_min_version' => '1.0.2',
+            'ios_latest_version' => '1.0.4',
+            'ios_min_version' => '',
+            'app_update_notes' => 'Absen lebih cepat membaca lokasi',
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success');
+
+    $settings = WebsiteSetting::current();
+
+    expect($settings->android_latest_version)->toBe('1.0.5');
+    expect($settings->android_min_version)->toBe('1.0.2');
+    expect($settings->ios_latest_version)->toBe('1.0.4');
+    expect($settings->ios_min_version)->toBeNull();
+    expect($settings->app_update_notes)->toBe('Absen lebih cepat membaca lokasi');
+});
+
+it('rejects malformed versions and a minimum above the latest', function (): void {
+    actingAs($this->superAdmin)
+        ->post(route('avana.website-settings.update'), [
+            'android_latest_version' => 'v1.0-beta',
+        ])
+        ->assertSessionHasErrors('android_latest_version');
+
+    actingAs($this->superAdmin)
+        ->post(route('avana.website-settings.update'), [
+            'ios_latest_version' => '1.0.4',
+            'ios_min_version' => '1.0.10',
+        ])
+        ->assertSessionHasErrors('ios_min_version');
+
+    expect(WebsiteSetting::current()->ios_min_version)->toBeNull();
+});

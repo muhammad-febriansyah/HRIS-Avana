@@ -24,6 +24,11 @@ export interface Settings {
     contact_address: string | null;
     playstore_url: string | null;
     appstore_url: string | null;
+    android_latest_version: string | null;
+    android_min_version: string | null;
+    ios_latest_version: string | null;
+    ios_min_version: string | null;
+    app_update_notes: string | null;
     privacy_policy: string | null;
     terms_of_service: string | null;
     account_deletion: string | null;
@@ -59,6 +64,11 @@ export interface FormData {
     contact_address: string;
     playstore_url: string;
     appstore_url: string;
+    android_latest_version: string;
+    android_min_version: string;
+    ios_latest_version: string;
+    ios_min_version: string;
+    app_update_notes: string;
     privacy_policy: string;
     terms_of_service: string;
     account_deletion: string;

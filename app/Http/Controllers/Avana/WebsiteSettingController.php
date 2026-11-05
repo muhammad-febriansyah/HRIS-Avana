@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -22,6 +23,11 @@ use Inertia\Response;
 class WebsiteSettingController extends Controller
 {
     use AuthorizesRequests;
+
+    /**
+     * Dotted numeric version as shown in the stores, e.g. 1.0.4.
+     */
+    private const VERSION_PATTERN = 'regex:/^\d+(\.\d+){0,3}$/';
 
     /**
      * Image fields handled as uploads, keyed by form input => storage column.
@@ -69,6 +75,11 @@ class WebsiteSettingController extends Controller
                 'contact_address' => $settings->contact_address,
                 'playstore_url' => $settings->playstore_url,
                 'appstore_url' => $settings->appstore_url,
+                'android_latest_version' => $settings->android_latest_version,
+                'android_min_version' => $settings->android_min_version,
+                'ios_latest_version' => $settings->ios_latest_version,
+                'ios_min_version' => $settings->ios_min_version,
+                'app_update_notes' => $settings->app_update_notes,
                 'privacy_policy' => $settings->privacy_policy,
                 'terms_of_service' => $settings->terms_of_service,
                 'account_deletion' => $settings->account_deletion,
@@ -104,6 +115,11 @@ class WebsiteSettingController extends Controller
             'contact_address' => ['nullable', 'string', 'max:500'],
             'playstore_url' => ['nullable', 'url', 'max:255'],
             'appstore_url' => ['nullable', 'url', 'max:255'],
+            'android_latest_version' => ['nullable', 'string', 'max:20', self::VERSION_PATTERN],
+            'android_min_version' => ['nullable', 'string', 'max:20', self::VERSION_PATTERN],
+            'ios_latest_version' => ['nullable', 'string', 'max:20', self::VERSION_PATTERN],
+            'ios_min_version' => ['nullable', 'string', 'max:20', self::VERSION_PATTERN],
+            'app_update_notes' => ['nullable', 'string', 'max:1000'],
             'privacy_policy' => ['nullable', 'string'],
             'terms_of_service' => ['nullable', 'string'],
             'account_deletion' => ['nullable', 'string'],
@@ -111,6 +127,8 @@ class WebsiteSettingController extends Controller
             'og_image' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
             'favicon' => ['nullable', 'file', 'mimes:ico,png,svg', 'max:1024'],
         ]);
+
+        $this->ensureMinimumNotAboveLatest($validated);
 
         $settings = WebsiteSetting::current();
 
@@ -143,6 +161,32 @@ class WebsiteSettingController extends Controller
         $settings->save();
 
         return back()->with('success', 'Pengaturan website berhasil disimpan');
+    }
+
+    /**
+     * A minimum above the latest version would force every phone into an
+     * update the store cannot deliver, so it is rejected per platform.
+     *
+     * @param  array<string, mixed>  $validated
+     *
+     * @throws ValidationException
+     */
+    private function ensureMinimumNotAboveLatest(array $validated): void
+    {
+        $errors = [];
+
+        foreach (['android', 'ios'] as $platform) {
+            $latest = $validated["{$platform}_latest_version"] ?? null;
+            $minimum = $validated["{$platform}_min_version"] ?? null;
+
+            if (is_string($latest) && is_string($minimum) && version_compare($minimum, $latest, '>')) {
+                $errors["{$platform}_min_version"] = 'Versi minimum tidak boleh lebih tinggi dari versi terbaru.';
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
     }
 
     /**

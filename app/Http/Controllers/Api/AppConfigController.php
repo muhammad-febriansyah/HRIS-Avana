@@ -16,7 +16,10 @@ class AppConfigController extends Controller
         return response()->json([
             'data' => array_merge(
                 $settings->toBrandingArray(),
-                ['favicon_url' => $settings->faviconUrl()],
+                [
+                    'favicon_url' => $settings->faviconUrl(),
+                    'app_update' => $settings->toAppUpdateArray(),
+                ],
             ),
         ]);
     }
