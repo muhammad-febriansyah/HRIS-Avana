@@ -154,6 +154,7 @@ test('a first-ever mobile login does not double-book itself as web plus mobile',
     $user = securityTestUser();
 
     $token = $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => $user->email,
         'password' => 'rahasia-panjang-sekali',
     ])->json('access_token');

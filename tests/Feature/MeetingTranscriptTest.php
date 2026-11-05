@@ -151,6 +151,7 @@ it('answers 409 on the segments endpoint when the recording must stop', function
     $this->tenant->update(['ai_token_quota' => 50, 'ai_token_balance' => 0]);
 
     $token = $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'rina.a@nusantara.co.id',
         'password' => 'password',
     ])->json('access_token');
@@ -170,6 +171,7 @@ it('queues the summary when the phone stops recording', function (): void {
     Queue::fake();
 
     $token = $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'rina.a@nusantara.co.id',
         'password' => 'password',
     ])->json('access_token');
@@ -188,6 +190,7 @@ it('refuses to feed a meeting recorded by somebody else', function (): void {
     $other = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail();
 
     $token = $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => $other->email,
         'password' => 'password',
     ])->json('access_token');

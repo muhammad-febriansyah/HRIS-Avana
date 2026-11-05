@@ -193,6 +193,7 @@ it('shares one wall between the web page and the mobile API', function (): void 
     actingAs($this->user)->post('/avana/saya/sosmed', ['body' => 'Ditulis dari web'])->assertRedirect();
 
     $token = $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'bagus.p@nusantara.co.id',
         'password' => 'password',
     ])->json('access_token');

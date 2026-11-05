@@ -104,6 +104,7 @@ it('names a tenant feature that actually exists for every bottom tab', function 
 
 it('sends the bottom bar to the phone on login', function (): void {
     $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => $this->user->email,
         'password' => 'password',
     ])

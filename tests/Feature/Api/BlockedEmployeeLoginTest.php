@@ -33,6 +33,7 @@ beforeEach(function (): void {
 function mobileLogin(string $email = 'mobile.tester@contoh.co', string $password = 'secret12345'): TestResponse
 {
     return test()->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => $email,
         'password' => $password,
     ]);

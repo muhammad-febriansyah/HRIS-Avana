@@ -61,7 +61,19 @@ it('allows a new device to bind after the active one is reset', function (): voi
     expect(UserDevice::where('user_id', $this->employee->id)->active()->value('device_id'))->toBe('DEV-BBB');
 });
 
-it('allows login without device info for non-mobile clients', function (): void {
+it('rejects login without a device id while binding is enforced', function (): void {
+    login()->assertForbidden()->assertJsonMissing(['access_token']);
+    login(['device_id' => ''])->assertForbidden();
+
+    expect(UserDevice::count())->toBe(0);
+});
+
+it('allows login without a device id when the tenant disables binding', function (): void {
+    AttendancePolicy::updateOrCreate(
+        ['tenant_id' => $this->employee->tenant_id],
+        ['device_binding_enabled' => false],
+    );
+
     login()->assertOk()->assertJsonStructure(['access_token']);
 
     expect(UserDevice::count())->toBe(0);

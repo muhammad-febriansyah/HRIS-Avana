@@ -684,6 +684,7 @@ it('creates a mobile login account when a password is set on store', function ()
 
     // The account authenticates against the mobile API end-to-end.
     $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'login.user@avanahr.test',
         'password' => 'rahasia123',
     ])->assertOk()->assertJsonStructure(['access_token']);
@@ -1077,7 +1078,7 @@ it('creates login accounts within a bulk submit', function (): void {
     expect($withLogin->user->roles->pluck('id'))->toContain($role->id);
     expect(Employee::where('full_name', 'Bulk NoLogin')->firstOrFail()->user_id)->toBeNull();
 
-    $this->postJson('/api/v1/auth/login', ['email' => 'bulk.a@avanahr.test', 'password' => 'rahasia123'])
+    $this->postJson('/api/v1/auth/login', ['device_id' => 'pest-device', 'email' => 'bulk.a@avanahr.test', 'password' => 'rahasia123'])
         ->assertOk()->assertJsonStructure(['access_token']);
 });
 

@@ -11,6 +11,7 @@ beforeEach(function (): void {
     $this->tenantId = $this->user->employee->tenant_id;
 
     $this->token = $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'bagus.p@nusantara.co.id',
         'password' => 'password',
     ])->json('access_token');

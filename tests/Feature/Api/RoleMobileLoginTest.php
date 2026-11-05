@@ -38,6 +38,7 @@ beforeEach(function (): void {
 function roleMobileLogin(): TestResponse
 {
     return test()->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'mobile.flag@contoh.co',
         'password' => 'secret12345',
     ]);

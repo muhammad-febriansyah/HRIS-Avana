@@ -12,6 +12,7 @@ beforeEach(function (): void {
         $this->app['auth']->forgetGuards();
 
         return $this->postJson('/api/v1/auth/login', [
+            'device_id' => 'pest-device',
             'email' => 'bagus.p@nusantara.co.id',
             'password' => 'password',
         ])->json('access_token');

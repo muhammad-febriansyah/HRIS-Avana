@@ -199,6 +199,7 @@ it('reports no talk shares for a meeting nobody spoke in', function (): void {
 
 it('returns the same meeting over the mobile API, transcript included', function (): void {
     $token = $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'rina.a@nusantara.co.id',
         'password' => 'password',
     ])->json('access_token');
@@ -229,6 +230,7 @@ it('sends the phone no analyses when none have been generated yet', function ():
     $this->meeting->insights()->delete();
 
     $token = $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'rina.a@nusantara.co.id',
         'password' => 'password',
     ])->json('access_token');

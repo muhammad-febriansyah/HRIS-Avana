@@ -67,6 +67,7 @@ beforeEach(function (): void {
 
     $this->submitLeave = function (): LeaveRequest {
         $token = $this->postJson('/api/v1/auth/login', [
+            'device_id' => 'pest-device',
             'email' => $this->staff->user->email,
             'password' => 'password',
         ])->json('access_token');
@@ -297,6 +298,7 @@ it('opens manager self-service on mobile to the named approver', function (): vo
     $leave = ($this->submitLeave)();
 
     $login = fn (): string => $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => $approver->user->email,
         'password' => 'password',
     ])->json('access_token');

@@ -2,6 +2,7 @@
 
 use App\Models\Company;
 use App\Models\Employee;
+use App\Models\WebsiteSetting;
 use Database\Seeders\AvanaDemoSeeder;
 
 beforeEach(function (): void {
@@ -14,8 +15,26 @@ it('exposes public app config without auth', function (): void {
         ->assertJsonStructure(['data' => ['site_name', 'tagline', 'logo_url', 'favicon_url', 'contact']]);
 });
 
+it('exposes the store update versions per platform in the app config', function (): void {
+    WebsiteSetting::current()->update([
+        'playstore_url' => 'https://play.google.com/store/apps/details?id=id.avanahr.app',
+        'android_latest_version' => '1.0.5',
+        'android_min_version' => '1.0.2',
+        'app_update_notes' => 'Perbaikan lokasi',
+    ]);
+
+    $this->getJson('/api/v1/app-config')
+        ->assertOk()
+        ->assertJsonPath('data.app_update.android.latest_version', '1.0.5')
+        ->assertJsonPath('data.app_update.android.min_version', '1.0.2')
+        ->assertJsonPath('data.app_update.android.store_url', 'https://play.google.com/store/apps/details?id=id.avanahr.app')
+        ->assertJsonPath('data.app_update.ios.latest_version', null)
+        ->assertJsonPath('data.app_update.notes', 'Perbaikan lokasi');
+});
+
 it('logs an employee in and returns access_token + user', function (): void {
     $response = $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'bagus.p@nusantara.co.id',
         'password' => 'password',
     ]);
@@ -36,6 +55,7 @@ it('returns tenant branding (logo) in the login payload for the splash', functio
     Company::where('tenant_id', 1)->update(['logo_path' => 'company-logos/nusantara.png']);
 
     $response = $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'bagus.p@nusantara.co.id',
         'password' => 'password',
     ])
@@ -47,12 +67,12 @@ it('returns tenant branding (logo) in the login payload for the splash', functio
 });
 
 it('rejects a wrong password', function (): void {
-    $this->postJson('/api/v1/auth/login', ['email' => 'bagus.p@nusantara.co.id', 'password' => 'salah'])
+    $this->postJson('/api/v1/auth/login', ['device_id' => 'pest-device', 'email' => 'bagus.p@nusantara.co.id', 'password' => 'salah'])
         ->assertStatus(422);
 });
 
 it('returns the profile (enveloped) for a valid token', function (): void {
-    $token = $this->postJson('/api/v1/auth/login', ['email' => 'bagus.p@nusantara.co.id', 'password' => 'password'])->json('access_token');
+    $token = $this->postJson('/api/v1/auth/login', ['device_id' => 'pest-device', 'email' => 'bagus.p@nusantara.co.id', 'password' => 'password'])->json('access_token');
 
     $this->withHeader('Authorization', 'Bearer '.$token)
         ->getJson('/api/v1/auth/me')
@@ -65,7 +85,7 @@ it('blocks /auth/me without a token', function (): void {
 });
 
 it('marks the director (top approver) as a manager for the mobile Manager mode', function (): void {
-    $token = $this->postJson('/api/v1/auth/login', ['email' => 'direktur@nusantara.co.id', 'password' => 'password'])->json('access_token');
+    $token = $this->postJson('/api/v1/auth/login', ['device_id' => 'pest-device', 'email' => 'direktur@nusantara.co.id', 'password' => 'password'])->json('access_token');
 
     $this->withHeader('Authorization', 'Bearer '.$token)
         ->getJson('/api/v1/auth/me')
@@ -80,7 +100,7 @@ it('keeps a top approver a manager even with no direct reports', function (): vo
     $directorId = Employee::where('employee_number', 'EMP-0000')->value('id');
     Employee::where('tenant_id', 1)->where('manager_id', $directorId)->update(['manager_id' => null]);
 
-    $token = $this->postJson('/api/v1/auth/login', ['email' => 'direktur@nusantara.co.id', 'password' => 'password'])->json('access_token');
+    $token = $this->postJson('/api/v1/auth/login', ['device_id' => 'pest-device', 'email' => 'direktur@nusantara.co.id', 'password' => 'password'])->json('access_token');
 
     $this->withHeader('Authorization', 'Bearer '.$token)
         ->getJson('/api/v1/auth/me')
@@ -94,7 +114,7 @@ it('does not mark a rank-and-file employee as a manager', function (): void {
     $bagusId = Employee::where('employee_number', 'EMP-0002')->value('id');
     Employee::where('tenant_id', 1)->where('manager_id', $bagusId)->update(['manager_id' => null]);
 
-    $token = $this->postJson('/api/v1/auth/login', ['email' => 'bagus.p@nusantara.co.id', 'password' => 'password'])->json('access_token');
+    $token = $this->postJson('/api/v1/auth/login', ['device_id' => 'pest-device', 'email' => 'bagus.p@nusantara.co.id', 'password' => 'password'])->json('access_token');
 
     $this->withHeader('Authorization', 'Bearer '.$token)
         ->getJson('/api/v1/auth/me')

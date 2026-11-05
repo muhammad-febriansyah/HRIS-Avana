@@ -14,6 +14,7 @@ beforeEach(function (): void {
         $this->app['auth']->forgetGuards();
 
         return $this->postJson('/api/v1/auth/login', array_merge([
+            'device_id' => 'pest-device',
             'email' => 'bagus.p@nusantara.co.id',
             'password' => 'password',
         ], $extra))->json('access_token');
@@ -60,7 +61,7 @@ it('changes the password, rotates the token, and invalidates the old one', funct
 });
 
 it('signs out of all devices and invalidates outstanding tokens', function (): void {
-    $token = ($this->login)(['device_id' => 'DEV-AAA']);
+    $token = ($this->login)(['device_id' => 'pest-device']);
 
     ($this->withToken)($token)
         ->postJson('/api/v1/me/security/logout-all')
@@ -74,14 +75,14 @@ it('signs out of all devices and invalidates outstanding tokens', function (): v
 
 it('lists the bound devices and flags the current one', function (): void {
     $token = ($this->login)([
-        'device_id' => 'DEV-XYZ',
+        'device_id' => 'pest-device',
         'device_name' => 'Galaxy S24',
         'model' => 'SM-S921',
         'platform' => 'android',
     ]);
 
     ($this->withToken)($token)
-        ->getJson('/api/v1/me/security/devices?device_id=DEV-XYZ')
+        ->getJson('/api/v1/me/security/devices?device_id=pest-device')
         ->assertOk()
         ->assertJsonStructure(['data' => [['id', 'device_name', 'platform', 'status', 'is_current', 'last_login_at']]])
         ->assertJsonFragment(['device_name' => 'Galaxy S24', 'is_current' => true, 'status' => 'active']);

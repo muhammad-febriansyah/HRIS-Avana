@@ -49,7 +49,7 @@ beforeEach(function (): void {
     ]);
 
     $this->login = function (string $email) {
-        $token = $this->postJson('/api/v1/auth/login', ['email' => $email, 'password' => 'password'])->json('access_token');
+        $token = $this->postJson('/api/v1/auth/login', ['device_id' => 'pest-device', 'email' => $email, 'password' => 'password'])->json('access_token');
         $this->app['auth']->forgetGuards();
 
         return $this->withHeader('Authorization', 'Bearer '.$token);

@@ -19,6 +19,7 @@ function twoFactorLogin(array $extra = [])
     app('auth')->forgetGuards();
 
     return test()->postJson('/api/v1/auth/login', array_merge([
+        'device_id' => 'pest-device',
         'email' => 'bagus.p@nusantara.co.id',
         'password' => 'password',
     ], $extra));

@@ -396,22 +396,26 @@ class AuthController extends Controller
      * rejected until an admin resets the binding. Returns a 403 JsonResponse to
      * block the login, or null when the device is allowed.
      *
-     * Requests without a device_id (e.g. non-mobile clients) skip binding.
+     * While the tenant enforces binding, a sign-in without a device_id is
+     * rejected: skipping the check for it let any client that simply left the
+     * field out log in from an unbound device. The app always sends one.
      *
      * @param  array<string, mixed>  $data
      */
     private function bindDevice(User $user, array $data): ?JsonResponse
     {
-        $deviceId = $data['device_id'] ?? null;
-
-        if (blank($deviceId)) {
-            return null;
-        }
-
         // Tenants can turn off "1 perangkat 1 akun" in Setup Absensi; then we
         // neither bind nor reject on a device mismatch.
         if (! AttendancePolicy::resolve($user->tenant_id)->device_binding_enabled) {
             return null;
+        }
+
+        $deviceId = $data['device_id'] ?? null;
+
+        if (blank($deviceId)) {
+            return response()->json([
+                'message' => 'Perangkat tidak dikenali. Masuk lewat aplikasi AvanaHR versi terbaru.',
+            ], 403);
         }
 
         $details = [

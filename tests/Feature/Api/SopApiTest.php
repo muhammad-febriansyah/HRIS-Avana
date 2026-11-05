@@ -16,7 +16,7 @@ beforeEach(function (): void {
     $this->tokenFor = function (string $email): string {
         $this->app['auth']->forgetGuards();
 
-        return $this->postJson('/api/v1/auth/login', ['email' => $email, 'password' => 'password'])->json('access_token');
+        return $this->postJson('/api/v1/auth/login', ['device_id' => 'pest-device', 'email' => $email, 'password' => 'password'])->json('access_token');
     };
 
     $this->auth = function (string $token) {

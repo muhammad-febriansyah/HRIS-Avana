@@ -41,6 +41,7 @@ function makeMobileUser(?int $tenantId): User
 function companyLogin(): TestResponse
 {
     return test()->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'company.tester@contoh.co',
         'password' => 'secret12345',
     ]);

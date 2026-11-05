@@ -25,6 +25,7 @@ beforeEach(function (): void {
     Attendance::query()->update(['clock_in_at' => null, 'clock_out_at' => null]);
 
     $this->token = $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'bagus.p@nusantara.co.id',
         'password' => 'password',
     ])->json('access_token');

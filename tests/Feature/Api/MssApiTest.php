@@ -18,6 +18,7 @@ beforeEach(function (): void {
 
     // Log in as an employee and treat them as the approving manager.
     $this->token = $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'bagus.p@nusantara.co.id',
         'password' => 'password',
     ])->json('access_token');

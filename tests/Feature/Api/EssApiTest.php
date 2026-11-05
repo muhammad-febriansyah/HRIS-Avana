@@ -30,6 +30,7 @@ beforeEach(function (): void {
     ]);
 
     $this->token = $this->postJson('/api/v1/auth/login', [
+        'device_id' => 'pest-device',
         'email' => 'bagus.p@nusantara.co.id',
         'password' => 'password',
     ])->json('access_token');
@@ -235,7 +236,7 @@ it('lists payslips and notifications with the expected envelope', function (): v
 });
 
 it('forbids a non-employee user (admin) from ESS endpoints', function (): void {
-    $token = $this->postJson('/api/v1/auth/login', ['email' => 'rina.a@nusantara.co.id', 'password' => 'password'])->json('access_token');
+    $token = $this->postJson('/api/v1/auth/login', ['device_id' => 'pest-device', 'email' => 'rina.a@nusantara.co.id', 'password' => 'password'])->json('access_token');
     $this->app['auth']->forgetGuards();
 
     $this->withHeader('Authorization', 'Bearer '.$token)
