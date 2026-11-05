@@ -855,6 +855,29 @@ it('includes a freshly submitted request in the activity feed', function (): voi
     expect($types)->toContain('overtime');
 });
 
+it('filters the activity feed by the requested date range', function (): void {
+    $employee = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+    Attendance::where('employee_id', $employee->id)->whereIn('date', ['2025-03-10', '2025-03-11'])->delete();
+    Attendance::create([
+        'tenant_id' => $employee->tenant_id,
+        'employee_id' => $employee->id,
+        'date' => '2025-03-10',
+        'clock_in_at' => '2025-03-10 08:00:00',
+        'status' => 'present',
+    ]);
+
+    $res = ($this->auth)()
+        ->getJson('/api/v1/me/activities?from=2025-03-01&to=2025-03-31')
+        ->assertOk();
+
+    $attendance = collect($res->json('data'))->firstWhere('type', 'attendance');
+
+    expect($attendance)->not->toBeNull()
+        ->and($attendance['detail']['date'])->toBe('2025-03-10');
+    expect(collect($res->json('data'))->pluck('occurred_at')->filter()
+        ->every(fn (string $at): bool => str_starts_with($at, '2025-03')))->toBeTrue();
+});
+
 it('returns the employee work locations for geofence auto-detect', function (): void {
     ($this->auth)()->getJson('/api/v1/me/work-locations')
         ->assertOk()
@@ -972,4 +995,12 @@ it('keeps the first mood of the day and rejects a second submission', function (
         ->assertJsonPath('data.mood', 'baik');
 
     expect(MoodCheckin::whereDate('date', now()->toDateString())->count())->toBe(1);
+});
+
+it('caps a field visit report at fifteen tasks', function (): void {
+    ($this->auth)()->postJson('/api/v1/me/field-visits', [
+        'visit_date' => now()->toDateString(),
+        'location' => 'Kantor klien',
+        'tasks' => array_map(fn (int $i): string => 'Tugas '.$i, range(1, 16)),
+    ])->assertUnprocessable()->assertJsonValidationErrors('tasks');
 });

@@ -391,3 +391,29 @@ it('will not let a manager act on another team settlement', function (): void {
 
     expect($settlement->fresh()->status)->toBe(Settlement::STATUS_SUBMITTED);
 });
+
+it('keeps the manager reject reason on the request', function (): void {
+    $claim = mssPendingClaim($this);
+
+    ($this->auth)()
+        ->postJson('/api/v1/mss/approvals/reimburse-'.$claim->id.'/act', [
+            'action' => 'reject',
+            'reason' => 'Nota tidak lengkap',
+        ])
+        ->assertOk();
+
+    expect($claim->fresh()->rejection_reason)->toBe('Nota tidak lengkap');
+});
+
+it('lists a settlement the manager decided in the history', function (): void {
+    $settlement = mssPendingSettlement($this);
+
+    ($this->auth)()
+        ->postJson('/api/v1/mss/approvals/settlement-'.$settlement->id.'/act', ['action' => 'approve'])
+        ->assertOk();
+
+    ($this->auth)()
+        ->getJson('/api/v1/mss/history')
+        ->assertOk()
+        ->assertJsonFragment(['id' => 'settlement-'.$settlement->id]);
+});

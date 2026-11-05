@@ -190,6 +190,47 @@ it('adds and removes a comment, keeping the counter in step', function (): void 
     expect($post->refresh()->comments_count)->toBe(0);
 });
 
+it('takes the replies with a deleted comment and uncounts them', function (): void {
+    $post = SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+    ]);
+
+    $parent = ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$post->id.'/comments', ['body' => 'Usul bagus'])
+        ->assertCreated()
+        ->json('data');
+
+    ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$post->id.'/comments', [
+            'body' => 'Setuju',
+            'parent_id' => $parent['id'],
+        ])
+        ->assertCreated();
+
+    expect($post->refresh()->comments_count)->toBe(2);
+
+    ($this->auth)($this->token)
+        ->deleteJson('/api/v1/me/social/comments/'.$parent['id'])
+        ->assertOk();
+
+    expect($post->refresh()->comments_count)->toBe(0)
+        ->and(SocialPostComment::where('social_post_id', $post->id)->count())->toBe(0);
+});
+
+it('returns comment timestamps with their zone', function (): void {
+    $post = SocialPost::factory()->create([
+        'tenant_id' => $this->tenantId,
+        'employee_id' => $this->employee->id,
+    ]);
+
+    $created = ($this->auth)($this->token)
+        ->postJson('/api/v1/me/social/posts/'.$post->id.'/comments', ['body' => 'Mantap'])
+        ->assertCreated();
+
+    expect($created->json('data.created_at'))->toMatch('/[+-]\d{2}:\d{2}$/');
+});
+
 it('lets an employee delete their own post but not someone else\'s', function (): void {
     $mine = SocialPost::factory()->create([
         'tenant_id' => $this->tenantId,

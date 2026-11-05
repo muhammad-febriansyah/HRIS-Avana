@@ -13,6 +13,7 @@ use App\Models\OvertimeRequest;
 use App\Models\PermissionRequest;
 use App\Models\WfhRequest;
 use App\Support\PrivateFile;
+use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -31,18 +32,43 @@ class ActivityController extends Controller
 
     private const LIMIT = 40;
 
+    private const RANGED_PER_SOURCE = 100;
+
+    private const RANGED_LIMIT = 300;
+
     public function index(Request $request): JsonResponse
     {
         $employee = $this->currentEmployee($request);
         $tenantId = $employee->tenant_id;
         $employeeId = $employee->id;
 
+        // The app's date filter. It was sent all along but never read, so a
+        // range older than the newest few weeks always came back empty.
+        $validated = $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+        ]);
+        $from = isset($validated['from']) ? Carbon::parse($validated['from'])->startOfDay() : null;
+        $to = isset($validated['to']) ? Carbon::parse($validated['to'])->endOfDay() : null;
+        $ranged = $from !== null || $to !== null;
+        // A bounded range can afford more rows per source than the open feed.
+        $perSource = $ranged ? self::RANGED_PER_SOURCE : self::PER_SOURCE;
+        $within = function ($query, string $column) use ($from, $to): void {
+            if ($from !== null) {
+                $query->where($column, '>=', $column === 'date' ? $from->toDateString() : $from);
+            }
+            if ($to !== null) {
+                $query->where($column, '<=', $column === 'date' ? $to->toDateString() : $to);
+            }
+        };
+
         /** @var Collection<int, array<string, mixed>> $items */
         $items = collect();
 
         $attendances = Attendance::forTenant($tenantId)->where('employee_id', $employeeId)
             ->whereNotNull('clock_in_at')
-            ->orderByDesc('date')->limit(self::PER_SOURCE)->get();
+            ->tap(fn ($q) => $within($q, 'date'))
+            ->orderByDesc('date')->limit($perSource)->get();
 
         // The clock-in selfie (earliest per attendance), keyed by attendance id.
         $selfiePathByAttendance = AttendanceSelfie::whereIn('attendance_id', $attendances->pluck('id'))
@@ -68,7 +94,11 @@ class ActivityController extends Controller
                 $a->status,
                 $a->clock_in_at ?? $a->date,
                 detail: [
-                    'date' => $a->date instanceof Carbon ? $a->date->toDateString() : (string) $a->date,
+                    // DateTimeInterface, not Carbon: dates are CarbonImmutable
+                    // here, and the string cast that fell through sent
+                    // "2026-07-15 00:00:00", which a phone outside WIB showed
+                    // as the day before.
+                    'date' => $a->date instanceof DateTimeInterface ? $a->date->format('Y-m-d') : (string) $a->date,
                     'clock_in' => $in,
                     'clock_out' => $out,
                     'work_mode' => $a->work_mode,
@@ -87,7 +117,8 @@ class ActivityController extends Controller
 
         LeaveRequest::forTenant($tenantId)->where('employee_id', $employeeId)
             ->with('leaveType:id,name')
-            ->orderByDesc('created_at')->limit(self::PER_SOURCE)->get()
+            ->tap(fn ($q) => $within($q, 'created_at'))
+            ->orderByDesc('created_at')->limit($perSource)->get()
             ->each(function (LeaveRequest $r) use ($items): void {
                 $items->push($this->shape(
                     'leave',
@@ -99,7 +130,8 @@ class ActivityController extends Controller
             });
 
         OvertimeRequest::forTenant($tenantId)->where('employee_id', $employeeId)
-            ->orderByDesc('created_at')->limit(self::PER_SOURCE)->get()
+            ->tap(fn ($q) => $within($q, 'created_at'))
+            ->orderByDesc('created_at')->limit($perSource)->get()
             ->each(function (OvertimeRequest $o) use ($items): void {
                 $items->push($this->shape(
                     'overtime',
@@ -111,7 +143,8 @@ class ActivityController extends Controller
             });
 
         PermissionRequest::forTenant($tenantId)->where('employee_id', $employeeId)
-            ->orderByDesc('created_at')->limit(self::PER_SOURCE)->get()
+            ->tap(fn ($q) => $within($q, 'created_at'))
+            ->orderByDesc('created_at')->limit($perSource)->get()
             ->each(function (PermissionRequest $p) use ($items): void {
                 $items->push($this->shape(
                     'permission',
@@ -123,7 +156,8 @@ class ActivityController extends Controller
             });
 
         WfhRequest::forTenant($tenantId)->where('employee_id', $employeeId)
-            ->orderByDesc('created_at')->limit(self::PER_SOURCE)->get()
+            ->tap(fn ($q) => $within($q, 'created_at'))
+            ->orderByDesc('created_at')->limit($perSource)->get()
             ->each(function (WfhRequest $w) use ($items): void {
                 $items->push($this->shape(
                     'wfh',
@@ -135,7 +169,8 @@ class ActivityController extends Controller
             });
 
         Claim::forTenant($tenantId)->where('employee_id', $employeeId)
-            ->orderByDesc('created_at')->limit(self::PER_SOURCE)->get()
+            ->tap(fn ($q) => $within($q, 'created_at'))
+            ->orderByDesc('created_at')->limit($perSource)->get()
             ->each(function (Claim $c) use ($items): void {
                 $items->push($this->shape(
                     'reimbursement',
@@ -149,7 +184,7 @@ class ActivityController extends Controller
         $data = $items
             ->sortByDesc(fn (array $i): string => $i['occurred_at'] ?? '')
             ->values()
-            ->take(self::LIMIT);
+            ->take($ranged ? self::RANGED_LIMIT : self::LIMIT);
 
         return response()->json(['data' => $data]);
     }
@@ -160,8 +195,8 @@ class ActivityController extends Controller
      */
     private function shape(string $type, string $title, string $subtitle, ?string $status, mixed $occurredAt, array $detail = []): array
     {
-        $at = $occurredAt instanceof Carbon
-            ? $occurredAt
+        $at = $occurredAt instanceof DateTimeInterface
+            ? Carbon::instance($occurredAt)
             : ($occurredAt !== null ? Carbon::parse((string) $occurredAt) : null);
 
         return [
@@ -188,8 +223,8 @@ class ActivityController extends Controller
             return '-';
         }
 
-        return $value instanceof Carbon
-            ? $value->toDateString()
+        return $value instanceof DateTimeInterface
+            ? $value->format('Y-m-d')
             : Carbon::parse((string) $value)->toDateString();
     }
 }

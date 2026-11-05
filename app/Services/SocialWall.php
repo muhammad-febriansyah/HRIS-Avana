@@ -219,10 +219,18 @@ final class SocialWall
         DB::transaction(function () use ($comment): void {
             $post = $comment->post()->first();
 
+            // A deleted comment takes its replies with it: the app hides them
+            // along with their parent, and leaving them counted kept the
+            // post's comment total above what anyone could see.
+            $replies = SocialPostComment::query()
+                ->where('parent_id', $comment->id)
+                ->get();
+            $removed = 1 + $replies->count();
+            $replies->each->delete();
             $comment->delete();
 
             if ($post !== null && $post->comments_count > 0) {
-                $post->decrement('comments_count');
+                $post->decrement('comments_count', min($removed, (int) $post->comments_count));
             }
         });
     }

@@ -107,7 +107,9 @@ class FieldVisitController extends Controller
             'notes' => ['nullable', 'string', 'max:2000'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'tasks' => ['nullable', 'array'],
+            // PHP drops uploads past max_file_uploads (20) without an error,
+            // so a long checklist with a photo per task lost photos silently.
+            'tasks' => ['nullable', 'array', 'max:15'],
             'tasks.*' => ['required', 'string', 'max:255'],
             // Per-task evidence, indexed alongside `tasks` so entry N here
             // belongs to task N above.

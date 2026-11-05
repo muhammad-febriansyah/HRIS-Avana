@@ -456,7 +456,7 @@ class SocialController extends Controller
             'category' => $post->category?->name,
             'category_icon' => $post->category?->icon,
             'category_color' => $post->category?->color,
-            'created_at' => $post->created_at?->toDateTimeString(),
+            'created_at' => $post->created_at?->toIso8601String(),
             'edited' => $post->edited_at !== null,
             'social_category_id' => $post->social_category_id,
             'tagged' => $this->transformMentions($post->mentions),
@@ -495,7 +495,7 @@ class SocialController extends Controller
             'is_mine' => (int) $comment->employee_id === (int) $viewer->id,
             'parent_id' => $comment->parent_id,
             'reply_to' => $comment->replyTo?->full_name,
-            'created_at' => $comment->created_at?->toDateTimeString(),
+            'created_at' => $comment->created_at?->toIso8601String(),
             'tagged' => $this->transformMentions($comment->mentions),
         ];
     }

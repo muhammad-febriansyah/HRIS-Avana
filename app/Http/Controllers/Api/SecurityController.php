@@ -167,6 +167,13 @@ class SecurityController extends Controller
 
         $userId = $request->user()->id;
 
+        // A token belongs to one install. When another account signed in on
+        // this phone before (and its logout never reached us), its rows still
+        // point here; clear them so its pushes stop landing on this account.
+        UserDevice::where('fcm_token', $data['fcm_token'])
+            ->where('user_id', '!=', $userId)
+            ->update(['fcm_token' => null]);
+
         $updated = UserDevice::where('user_id', $userId)
             ->where('device_id', $data['device_id'])
             ->update(['fcm_token' => $data['fcm_token']]);

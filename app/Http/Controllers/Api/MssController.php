@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Concerns\ResolvesApiEmployee;
 use App\Http\Controllers\Controller;
+use App\Models\ApprovalRequest;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Models\Employee;
@@ -28,6 +29,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -140,7 +142,7 @@ class MssController extends Controller
         $manager = $this->currentEmployee($request);
         $model = $this->resolveForManager($key, $manager);
 
-        $this->applyDecision($model, $data['action'], $manager);
+        $this->applyDecision($model, $data['action'], $manager, $data['reason'] ?? null);
 
         return response()->json([
             'message' => $data['action'] === 'approve' ? 'Permintaan disetujui.' : 'Permintaan ditolak.',
@@ -165,7 +167,7 @@ class MssController extends Controller
             if ($model === null) {
                 continue;
             }
-            $this->applyDecision($model, $data['action'], $manager);
+            $this->applyDecision($model, $data['action'], $manager, $data['reason'] ?? null);
             $done++;
         }
 
@@ -522,16 +524,33 @@ class MssController extends Controller
         // requests (role/department/position) they are eligible to approve.
         $eligibleIds = ApprovalEngine::pendingApprovableIdsFor($modelClass, $manager);
 
+        $resolvedStatuses = $this->statusesFor($type, $statuses);
+
         $query = $modelClass::query()
             ->where('tenant_id', $manager->tenant_id)
-            ->where(function ($sub) use ($manager, $eligibleIds): void {
-                $sub->where('current_approver_id', $manager->id);
+            ->where(function ($outer) use ($manager, $eligibleIds, $resolvedStatuses, $byDecidedAt, $modelClass): void {
+                $outer->where(function ($sub) use ($manager, $eligibleIds, $resolvedStatuses): void {
+                    $sub->where(function ($routed) use ($manager, $eligibleIds): void {
+                        $routed->where('current_approver_id', $manager->id);
 
-                if ($eligibleIds !== []) {
-                    $sub->orWhereIn('id', $eligibleIds);
+                        if ($eligibleIds !== []) {
+                            $routed->orWhereIn('id', $eligibleIds);
+                        }
+                    })->whereIn('status', $resolvedStatuses);
+                });
+
+                // History also covers decisions the routing no longer points
+                // at: a workflow step approved here moves the request on to
+                // the next approver (it stays pending), and a settlement
+                // decision clears current_approver_id. Both used to vanish
+                // from the manager's history.
+                if ($byDecidedAt) {
+                    $decidedIds = $this->decidedIdsFor($modelClass, $manager);
+                    if ($decidedIds !== []) {
+                        $outer->orWhereIn('id', $decidedIds);
+                    }
                 }
             })
-            ->whereIn('status', $this->statusesFor($type, $statuses))
             ->with('employee:id,full_name,employee_number');
 
         if ($type === 'leave') {
@@ -609,11 +628,71 @@ class MssController extends Controller
         return array_map(fn (string $status): string => $map[$status] ?? $status, $statuses);
     }
 
-    private function applyDecision(Model $model, string $action, Employee $manager): void
+    /**
+     * Ids of [$modelClass] rows this manager has decided on, from the
+     * workflow approval log and, for settlements, the decision stamps.
+     *
+     * @param  class-string<Model>  $modelClass
+     * @return list<int>
+     */
+    private function decidedIdsFor(string $modelClass, Employee $manager): array
+    {
+        if ($manager->user_id === null) {
+            return [];
+        }
+
+        $ids = ApprovalRequest::query()
+            ->where('tenant_id', $manager->tenant_id)
+            ->where('approvable_type', $modelClass)
+            ->whereHas('logs', fn ($log) => $log
+                ->where('approver_id', $manager->user_id)
+                ->whereIn('action', ['approve', 'reject', 'approved', 'rejected']))
+            ->pluck('approvable_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        if ($modelClass === Settlement::class) {
+            $ids = [
+                ...$ids,
+                ...Settlement::query()
+                    ->where('tenant_id', $manager->tenant_id)
+                    ->where(fn ($q) => $q
+                        ->where('manager_approved_by', $manager->user_id)
+                        ->orWhere('rejected_by', $manager->user_id))
+                    ->pluck('id')
+                    ->map(fn ($id): int => (int) $id)
+                    ->all(),
+            ];
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    private function applyDecision(Model $model, string $action, Employee $manager, ?string $reason = null): void
+    {
+        $this->decide($model, $action, $manager, $reason);
+
+        // The reason the manager typed was validated and then dropped, so the
+        // employee saw a rejection with no explanation. Kept on the request
+        // wherever the type has a column for it.
+        if ($action === 'reject' && $reason !== null && $reason !== ''
+            && self::hasRejectionReason($model)) {
+            $model->forceFill(['rejection_reason' => $reason])->save();
+        }
+    }
+
+    private static function hasRejectionReason(Model $model): bool
+    {
+        static $cache = [];
+
+        return $cache[$model->getTable()] ??= Schema::hasColumn($model->getTable(), 'rejection_reason');
+    }
+
+    private function decide(Model $model, string $action, Employee $manager, ?string $reason): void
     {
         // A workflow-driven request advances step-by-step (or finalizes on the
         // last step) via the engine; when it handles the decision we are done.
-        if (ApprovalEngine::decide($model, $manager->user_id, $action, null)) {
+        if (ApprovalEngine::decide($model, $manager->user_id, $action, $reason)) {
             return;
         }
 

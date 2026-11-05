@@ -304,8 +304,18 @@ class AuthController extends Controller
     /**
      * Invalidate the current token.
      */
-    public function logout(): JsonResponse
+    public function logout(Request $request): JsonResponse
     {
+        // Drop this phone's push token so the next account to sign in on it
+        // stops receiving the previous one's notifications.
+        $deviceId = $request->input('device_id');
+        $user = auth('api')->user();
+        if ($user !== null && is_string($deviceId) && $deviceId !== '') {
+            UserDevice::where('user_id', $user->id)
+                ->where('device_id', $deviceId)
+                ->update(['fcm_token' => null]);
+        }
+
         auth('api')->logout();
 
         return response()->json(['message' => 'Berhasil keluar.']);
