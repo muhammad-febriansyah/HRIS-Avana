@@ -106,6 +106,7 @@ class RemindAttendance extends Command
         return Employee::query()
             ->where('status', 'active')
             ->whereNotNull('user_id')
+            ->where('attendance_exempt', false)
             ->get(['id', 'tenant_id', 'user_id', 'join_date', 'resign_date']);
     }
 

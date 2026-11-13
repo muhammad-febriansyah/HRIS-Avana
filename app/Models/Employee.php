@@ -45,6 +45,7 @@ final class Employee extends Model
             'resign_date' => 'date',
             'custom_data' => 'array',
             'is_top_approver' => 'boolean',
+            'attendance_exempt' => 'boolean',
             'nik' => EncryptedString::class,
             'anonymized_at' => 'datetime',
         ];

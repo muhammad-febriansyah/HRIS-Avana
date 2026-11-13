@@ -69,7 +69,8 @@ final class AbsenceMarker
      *
      * Only employees with a login are considered: someone with no account has
      * no way to clock in, so holding the missing record against them would
-     * be the system's fault, not theirs.
+     * be the system's fault, not theirs. Nor anyone HR marked "tidak wajib
+     * absen" on the Kebijakan Absensi page.
      *
      * @param  (callable(Builder<Employee>): mixed)|null  $scope
      * @return Collection<int, Employee>
@@ -80,6 +81,8 @@ final class AbsenceMarker
 
         $query = Employee::forTenant($tenantId)
             ->whereNotNull('user_id')
+            // An owner or director the company never expects at the clock.
+            ->where('attendance_exempt', false)
             ->where(function (Builder $query) use ($dateString): void {
                 // Someone who resigned later than this date was still on the
                 // books for it — a backfill must not skip their last weeks.

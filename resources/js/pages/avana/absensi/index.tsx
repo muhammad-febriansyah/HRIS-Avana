@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { DatePicker } from '@/components/avana/date-picker';
 import { AIcon, btnOut, C } from '@/lib/avana';
 import { KpiStrip } from './components';
+import { CorrectionModal } from './correction-modal';
 import { RekapTable } from './rekap-table';
 import type { AbsensiProps, Attendance, FlashProps } from './types';
 
@@ -14,7 +15,7 @@ const STATUS_OPTIONS = [
     { value: 'leave', label: 'Cuti / Izin' },
     { value: 'absent', label: 'Alpa' },
     { value: 'incomplete', label: 'Belum Lengkap' },
-    { value: 'not_in', label: 'Belum Absen (hari ini)' },
+    { value: 'not_in', label: 'Belum Absen / Belum Tercatat' },
 ];
 
 const filterControl: CSSProperties = {
@@ -34,11 +35,14 @@ export default function AvanaAbsensi({
     range,
     kpis,
     branches,
+    can_correct: canCorrect,
+    today,
 }: AbsensiProps) {
     const { flash } = usePage<FlashProps>().props;
     const meta = attendances.meta;
 
     const [search, setSearch] = useState(filters.search ?? '');
+    const [correcting, setCorrecting] = useState<Attendance | null>(null);
     const isFirstSearch = useRef(true);
 
     useEffect(() => {
@@ -46,6 +50,17 @@ export default function AvanaAbsensi({
             toast.success(flash.success, { id: flash.success });
         }
     }, [flash?.success]);
+
+    // A correction inside a locked payroll period: the payslip will not
+    // follow, so the note has to stay up long enough to act on.
+    useEffect(() => {
+        if (flash?.warning) {
+            toast.warning(flash.warning, {
+                id: flash.warning,
+                duration: 12000,
+            });
+        }
+    }, [flash?.warning]);
 
     useEffect(() => {
         if (isFirstSearch.current) {
@@ -238,10 +253,19 @@ export default function AvanaAbsensi({
                             onSearchChange={setSearch}
                             onGoToPage={goToPage}
                             onRowClick={openDetail}
+                            onCorrect={canCorrect ? setCorrecting : undefined}
                         />
                     </div>
                 </div>
             </div>
+
+            {correcting !== null && (
+                <CorrectionModal
+                    row={correcting}
+                    today={today}
+                    onClose={() => setCorrecting(null)}
+                />
+            )}
         </>
     );
 }

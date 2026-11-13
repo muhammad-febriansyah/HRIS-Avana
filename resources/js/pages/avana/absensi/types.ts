@@ -86,6 +86,12 @@ export interface AbsensiProps {
         alpa: number;
         /** Due today with no clock-in yet; null when the range excludes today. */
         belum_absen: number | null;
+        /** "Belum Absen (hari ini)" today, "Belum Tercatat" on a past day. */
+        belum_absen_label: string;
     };
     branches: BranchOption[];
+    /** Whether the viewer may correct attendance directly (HR). */
+    can_correct: boolean;
+    /** Today on the tenant's clock (Y-m-d). */
+    today: string;
 }

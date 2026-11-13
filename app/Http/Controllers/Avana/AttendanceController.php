@@ -8,7 +8,9 @@ use App\Http\Resources\Avana\AttendanceResource;
 use App\Models\Attendance;
 use App\Models\Branch;
 use App\Models\Employee;
+use App\Models\PayrollPeriod;
 use App\Services\AbsenceMarker;
+use App\Services\HrAttendanceCorrection;
 use App\Support\PrivateFile;
 use App\Support\TenantTime;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -16,6 +18,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -109,15 +112,22 @@ class AttendanceController extends Controller
 
         $this->applyBranchScope($query, $request->user());
 
-        $notYetIn = $this->notYetIn($request, (int) $tenantId, $fromString, $toString);
+        // The day whose no-shows are listed: a single-day view of today or a
+        // past day, or — for a range — today when the range covers it.
+        $today = TenantTime::today($tenantId);
+        $focusDate = ! $isRange
+            ? ($fromString <= $today ? $fromString : null)
+            : ($fromString <= $today && $today <= $toString ? $today : null);
+        $notYetIn = $focusDate !== null ? $this->notYetIn($request, (int) $tenantId, $focusDate) : null;
+        $notYetInLabel = $focusDate === $today ? 'Belum Absen' : 'Belum Tercatat';
 
-        // Today's single-day rekap lists the no-shows as rows of their own, so
-        // the table HR reads shows everyone the day expects — not only those
-        // who opened the app. Ranges keep the plain paginated query: past days
-        // already carry real Alpa rows, and merging a month in memory would
+        // A single-day rekap lists the no-shows as rows of their own, so the
+        // table HR reads shows everyone the day expects — not only those who
+        // opened the app — and each one can be corrected from there. Ranges
+        // keep the plain paginated query: merging a month in memory would
         // not scale.
         $attendances = $notYetIn !== null && ! $isRange && in_array($request->query('status'), [null, '', self::NOT_YET_IN_STATUS], true)
-            ? $this->withNotYetInRows($request, $query->orderBy($sort, $direction)->get(), $notYetIn, $fromString)
+            ? $this->withNotYetInRows($request, $query->orderBy($sort, $direction)->get(), $notYetIn, $fromString, $notYetInLabel)
             : AttendanceResource::collection(
                 $query->orderBy($sort, $direction)->paginate($request->integer('per_page', 10))->withQueryString(),
             );
@@ -153,15 +163,79 @@ class AttendanceController extends Controller
                 'izin' => (int) ($statusCounts['leave'] ?? 0),
                 'alpa' => (int) ($statusCounts['absent'] ?? 0),
                 'belum_absen' => $notYetIn === null ? null : count($notYetIn),
+                'belum_absen_label' => $focusDate === $today ? 'Belum Absen (hari ini)' : 'Belum Tercatat',
             ],
             'branches' => Branch::forTenant($tenantId)
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'can_correct' => $request->user()->can('approveCorrection', Attendance::class),
+            'today' => TenantTime::today($tenantId),
         ]);
     }
 
     /**
-     * Today's attendance rows followed by one "Belum Absen" row per no-show,
+     * HR corrects one employee's day straight from the rekap: set clock times
+     * (status then follows the shift), or mark the day Cuti/Izin or Alpa.
+     */
+    public function correct(Request $request): RedirectResponse
+    {
+        $this->authorize('approveCorrection', Attendance::class);
+
+        $user = $request->user();
+        $tenantId = (int) $user->tenant_id;
+        $today = TenantTime::today($tenantId);
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at')],
+            'date' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.$today],
+            'status' => ['required', Rule::in(HrAttendanceCorrection::STATUSES)],
+            'clock_in' => ['nullable', 'required_if:status,'.HrAttendanceCorrection::STATUS_PRESENT, 'date_format:H:i'],
+            'clock_out' => ['nullable', 'date_format:H:i'],
+            'reason' => ['required', 'string', 'max:1000'],
+        ], [
+            'date.before_or_equal' => 'Tanggal tidak boleh melewati hari ini.',
+            'clock_in.required_if' => 'Jam masuk wajib diisi untuk status Hadir.',
+            'clock_in.date_format' => 'Format jam masuk harus HH:MM.',
+            'clock_out.date_format' => 'Format jam pulang harus HH:MM.',
+            'reason.required' => 'Alasan koreksi wajib diisi.',
+        ]);
+
+        // The same branch fence as the rekap: HR of one branch cannot rewrite
+        // another branch's attendance by posting an employee id.
+        $employeeQuery = Employee::forTenant($tenantId)->whereKey($data['employee_id']);
+        $this->applyBranchScope($employeeQuery, $user);
+        $employee = $employeeQuery->firstOrFail();
+
+        HrAttendanceCorrection::apply(
+            $employee,
+            $data['date'],
+            $data['status'],
+            $data['clock_in'] ?? null,
+            $data['clock_out'] ?? null,
+            $data['reason'],
+            $user,
+        );
+
+        $response = back()->with('success', 'Absensi '.$employee->full_name.' tanggal '.Carbon::parse($data['date'])->translatedFormat('j M Y').' dikoreksi.');
+
+        // A locked period's payslips are history: the run will not pick this
+        // up again, so HR has to settle the difference as a pay correction.
+        $lockedPeriod = PayrollPeriod::forTenant($tenantId)
+            ->where('status', 'locked')
+            ->whereDate('start_date', '<=', $data['date'])
+            ->whereDate('end_date', '>=', $data['date'])
+            ->first(['code']);
+
+        if ($lockedPeriod !== null) {
+            $response->with('warning', 'Periode payroll '.$lockedPeriod->code.' sudah dikunci, jadi gaji di periode itu tidak berubah otomatis. Selisihnya dicatat lewat Payroll → Koreksi Gaji.');
+        }
+
+        return $response;
+    }
+
+    /**
+     * The day's attendance rows followed by one row per no-show ("Belum
+     * Absen" today, "Belum Tercatat" on a past day not yet closed as Alpa),
      * paginated in memory in the same shape the resource paginator sends.
      *
      * The virtual rows carry a negative id (the employee's, negated) so they
@@ -172,7 +246,7 @@ class AttendanceController extends Controller
      * @param  array<int, array{id: int, name: string, employee_number: string|null, branch: string|null}>  $notYetIn
      * @return array{data: list<array<string, mixed>>, meta: array<string, int|null>, links: array<string, null>}
      */
-    private function withNotYetInRows(Request $request, Collection $records, array $notYetIn, string $date): array
+    private function withNotYetInRows(Request $request, Collection $records, array $notYetIn, string $date, string $label): array
     {
         $search = mb_strtolower(trim((string) $request->query('search', '')));
         $day = Carbon::parse($date);
@@ -198,7 +272,7 @@ class AttendanceController extends Controller
                 'late_minutes' => 0,
                 'telat' => '—',
                 'status' => self::NOT_YET_IN_STATUS,
-                'status_label' => 'Belum Absen',
+                'status_label' => $label,
                 'location_status' => null,
                 'clock_in_coords' => null,
                 'clock_out_coords' => null,
@@ -231,25 +305,20 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Who is due at work today and has no attendance row yet — null unless the
-     * range covers today.
+     * Who was due at work on the date and has no attendance row for it.
      *
-     * Past days carry a real Alpa row once the nightly marker has closed them;
-     * today is still open, so a missing clock-in is "belum absen", not alpa.
+     * Today that is "belum absen" — the day is still open. On a past day it is
+     * a no-show the nightly marker has not closed yet (a day from before the
+     * marker existed, or before a backfill): listed so HR can see it and
+     * decide, row by row, whether it was Alpa, leave, or a forgotten punch.
      *
-     * @return array<int, array{id: int, name: string, employee_number: string|null, branch: string|null}>|null
+     * @return array<int, array{id: int, name: string, employee_number: string|null, branch: string|null}>
      */
-    private function notYetIn(Request $request, int $tenantId, string $from, string $to): ?array
+    private function notYetIn(Request $request, int $tenantId, string $date): array
     {
-        $today = TenantTime::today($tenantId);
-
-        if ($today < $from || $today > $to) {
-            return null;
-        }
-
         $branchId = $request->query('branch_id');
 
-        $missing = AbsenceMarker::missing($tenantId, Carbon::parse($today), function ($query) use ($request, $branchId): void {
+        $missing = AbsenceMarker::missing($tenantId, Carbon::parse($date), function ($query) use ($request, $branchId): void {
             $query->when(is_numeric($branchId), fn ($q) => $q->where('branch_id', (int) $branchId));
             $this->applyBranchScope($query, $request->user());
         });

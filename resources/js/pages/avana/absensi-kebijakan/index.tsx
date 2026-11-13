@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import AttendancePolicyController from '@/actions/App/Http/Controllers/Avana/AttendancePolicyController';
 import { SearchableSelect } from '@/components/searchable-select';
 import { AIcon, btnSave, C, card } from '@/lib/avana';
+import { ExemptPanel } from './exempt-panel';
+import type { ExemptEmployees } from './exempt-panel';
 
 /** Mirrors AttendancePolicy::SCOPES, loosest last. */
 const SCOPE_OPTIONS = [
@@ -86,6 +88,7 @@ interface PageProps {
     scopeOptions: ScopeOption[];
     overrides: ScopeOverride[];
     assignableEmployees: AssignableEmployee[];
+    exemptEmployees: ExemptEmployees;
 }
 
 const POLICY_TABS = [
@@ -118,6 +121,12 @@ const POLICY_TABS = [
         label: 'Pengecualian',
         hint: 'Atur karyawan yang beda area absensi.',
         icon: 'users',
+    },
+    {
+        key: 'exempt',
+        label: 'Tidak Wajib Absen',
+        hint: 'Pemilik / direksi yang tidak absen.',
+        icon: 'user-x',
     },
 ] as const;
 
@@ -636,6 +645,7 @@ export default function AbsensiKebijakan({
     scopeOptions,
     overrides,
     assignableEmployees,
+    exemptEmployees,
 }: PageProps) {
     const form = useForm<Policy>({ ...policy });
     const [activeTab, setActiveTab] = useState<PolicyTabKey>('area');
@@ -1091,7 +1101,6 @@ export default function AbsensiKebijakan({
                                 </div>
                             </>
                         )}
-
                     </Section>
 
                     {/* Anti-Replay (nonce sekali pakai) is hidden for now: it
@@ -1100,7 +1109,7 @@ export default function AbsensiKebijakan({
                         in the form so whatever a tenant already has stays put
                         rather than being cleared by a save. */}
 
-                    {activeTab !== 'override' && (
+                    {activeTab !== 'override' && activeTab !== 'exempt' && (
                         <button
                             type="submit"
                             style={{
@@ -1123,6 +1132,12 @@ export default function AbsensiKebijakan({
                             scopeOptions={scopeOptions}
                             tenantScopeLabel={tenantScopeLabel}
                         />
+                    </div>
+                )}
+
+                {activeTab === 'exempt' && (
+                    <div style={{ marginTop: 16 }}>
+                        <ExemptPanel employees={exemptEmployees} />
                     </div>
                 )}
             </div>

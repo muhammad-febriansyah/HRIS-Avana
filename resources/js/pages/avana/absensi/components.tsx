@@ -22,7 +22,7 @@ export function KpiStrip({ kpis }: KpiStripProps) {
 
     if (kpis.belum_absen !== null) {
         kpiCards.push({
-            label: 'Belum Absen (hari ini)',
+            label: kpis.belum_absen_label,
             value: kpis.belum_absen,
             color: C.violet,
         });

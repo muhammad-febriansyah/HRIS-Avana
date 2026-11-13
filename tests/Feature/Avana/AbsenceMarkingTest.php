@@ -209,7 +209,7 @@ it('counts who has not clocked in yet today on the Absensi page', function (): v
             ->where('kpis.belum_absen', fn ($count): bool => $count >= 1));
 
     actingAs($this->admin)
-        ->get('/avana/absensi?date=2026-11-02')
+        ->get('/avana/absensi?date=2026-11-20')
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page
             ->where('kpis.belum_absen', null));
@@ -252,14 +252,28 @@ it('shows today\'s no-shows as rows of the rekap table', function (): void {
                 && collect($rows)->contains(fn ($row): bool => ($row['employee']['id'] ?? null) === $this->alice->id && $row['status'] === 'present')));
 });
 
-it('keeps past days to their stored rows', function (): void {
+it('lists a past day\'s unclosed no-shows as Belum Tercatat until they are marked', function (): void {
     $this->travelTo(Carbon::parse(ABSENCE_WEDNESDAY.' 10:00', TenantTime::zone($this->tenant->id)));
+    $tuesday = '2026-11-10';
+    clearAttendance($this->alice, $tuesday);
+
+    $aliceRow = fn ($rows): ?array => collect($rows)->firstWhere('id', -$this->alice->id);
 
     actingAs($this->admin)
-        ->get('/avana/absensi?date=2026-11-10&per_page=500')
+        ->get('/avana/absensi?date='.$tuesday.'&per_page=500')
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page
-            ->where('attendances.data', fn ($rows): bool => collect($rows)->every(fn ($row): bool => $row['id'] > 0)));
+            ->where('kpis.belum_absen_label', 'Belum Tercatat')
+            ->where('attendances.data', fn ($rows): bool => ($aliceRow($rows)['status_label'] ?? null) === 'Belum Tercatat'));
+
+    // Once the day is closed she is a real Alpa row instead.
+    AbsenceMarker::markTenant($this->tenant->id, Carbon::parse($tuesday));
+
+    actingAs($this->admin)
+        ->get('/avana/absensi?date='.$tuesday.'&per_page=500')
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('attendances.data', fn ($rows): bool => $aliceRow($rows) === null
+                && collect($rows)->contains(fn ($row): bool => ($row['employee']['id'] ?? null) === $this->alice->id && $row['status'] === 'absent')));
 });
 
 describe('payroll', function (): void {

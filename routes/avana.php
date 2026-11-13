@@ -197,6 +197,10 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     // Per-employee exceptions to the tenant-wide scope, e.g. WFA for field staff.
     Route::post('absensi/kebijakan/pengecualian', [AttendancePolicyController::class, 'storeOverride'])->name('absensi.kebijakan.pengecualian.store');
     Route::delete('absensi/kebijakan/pengecualian/{employee}', [AttendancePolicyController::class, 'destroyOverride'])->name('absensi.kebijakan.pengecualian.destroy');
+    Route::post('absensi/kebijakan/tidak-wajib', [AttendancePolicyController::class, 'storeExemption'])->name('absensi.kebijakan.tidak-wajib.store');
+    Route::delete('absensi/kebijakan/tidak-wajib/{employee}', [AttendancePolicyController::class, 'destroyExemption'])->name('absensi.kebijakan.tidak-wajib.destroy');
+    // HR correcting a day directly — status, clock times, reason.
+    Route::post('absensi/koreksi', [AttendanceController::class, 'correct'])->name('absensi.koreksi');
     Route::get('absensi/{attendance}', [AttendanceController::class, 'show'])->name('absensi.show');
     Route::delete('absensi/{attendance}', [AttendanceController::class, 'destroy'])->name('absensi.destroy');
     Route::get('cuti', [LeaveController::class, 'index'])->name('cuti');

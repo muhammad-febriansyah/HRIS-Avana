@@ -50,6 +50,7 @@ class AttendancePolicyController extends Controller
             'scopeOptions' => AttendancePolicy::scopeOptions(),
             'overrides' => $this->overrides($tenantId),
             'assignableEmployees' => $this->assignableEmployees($tenantId),
+            'exemptEmployees' => $this->exemptEmployees($tenantId),
         ]);
     }
 
@@ -97,6 +98,70 @@ class AttendancePolicyController extends Controller
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * Who the company does not expect to clock in, and every other active
+     * employee as a candidate for the picker.
+     *
+     * @return array{list: array<int, array<string, mixed>>, candidates: array<int, array<string, mixed>>}
+     */
+    private function exemptEmployees(int $tenantId): array
+    {
+        $employees = Employee::forTenant($tenantId)
+            ->where(fn ($query) => $query->where('status', 'active')->orWhere('attendance_exempt', true))
+            ->orderBy('full_name')
+            ->get(['id', 'public_id', 'full_name', 'employee_number', 'attendance_exempt']);
+
+        $shape = fn (Employee $employee): array => [
+            'id' => $employee->id,
+            'route_key' => $employee->getRouteKey(),
+            'name' => $employee->full_name,
+            'employee_number' => $employee->employee_number,
+        ];
+
+        return [
+            'list' => $employees->where('attendance_exempt', true)->map($shape)->values()->all(),
+            'candidates' => $employees->where('attendance_exempt', false)->map($shape)->values()->all(),
+        ];
+    }
+
+    /**
+     * Mark employees as not required to clock in — an owner or a director.
+     * They drop out of the clock-in reminder, the "belum absen" list and the
+     * nightly Alpa marker, so their pay is never docked for a missed punch.
+     */
+    public function storeExemption(Request $request): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        $tenantId = (int) ($request->user()->tenant_id ?? 0);
+
+        $data = $request->validate([
+            'employee_ids' => ['required', 'array', 'min:1'],
+            'employee_ids.*' => [
+                'integer',
+                Rule::exists('employees', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
+            ],
+        ], [
+            'employee_ids.required' => 'Pilih minimal satu karyawan.',
+        ]);
+
+        $count = Employee::forTenant($tenantId)
+            ->whereKey($data['employee_ids'])
+            ->update(['attendance_exempt' => true]);
+
+        return back()->with('success', $count.' karyawan ditandai tidak wajib absen.');
+    }
+
+    /** Put an employee back under the clock-in obligation. */
+    public function destroyExemption(Request $request, Employee $employee): RedirectResponse
+    {
+        $this->ensureCanManage($request);
+        abort_unless((int) $employee->tenant_id === (int) $request->user()->tenant_id, 404);
+
+        $employee->update(['attendance_exempt' => false]);
+
+        return back()->with('success', $employee->full_name.' kembali wajib absen.');
     }
 
     /**

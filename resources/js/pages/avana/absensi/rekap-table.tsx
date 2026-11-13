@@ -9,6 +9,8 @@ interface RekapTableProps {
     onSearchChange: (value: string) => void;
     onGoToPage: (page: number) => void;
     onRowClick: (row: Attendance) => void;
+    /** Opens HR's correction form; the column is hidden when absent. */
+    onCorrect?: (row: Attendance) => void;
 }
 
 /** Daily attendance rekap table with a search header and pagination footer. */
@@ -19,6 +21,7 @@ export function RekapTable({
     onSearchChange,
     onGoToPage,
     onRowClick,
+    onCorrect,
 }: RekapTableProps) {
     return (
         <div
@@ -183,6 +186,20 @@ export function RekapTable({
                             >
                                 Status
                             </th>
+                            {onCorrect && (
+                                <th
+                                    style={{
+                                        padding: '11px 18px',
+                                        textAlign: 'right',
+                                        fontSize: 11.5,
+                                        fontWeight: 600,
+                                        color: C.faint,
+                                        textTransform: 'uppercase',
+                                    }}
+                                >
+                                    Aksi
+                                </th>
+                            )}
                         </tr>
                     </thead>
                     <tbody>
@@ -193,7 +210,7 @@ export function RekapTable({
                                 }}
                             >
                                 <td
-                                    colSpan={8}
+                                    colSpan={onCorrect ? 9 : 8}
                                     style={{
                                         padding: '48px 18px',
                                         textAlign: 'center',
@@ -387,6 +404,44 @@ export function RekapTable({
                                             {badge.label}
                                         </span>
                                     </td>
+                                    {onCorrect && (
+                                        <td
+                                            style={{
+                                                padding: '12px 18px',
+                                                textAlign: 'right',
+                                            }}
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    onCorrect(row);
+                                                }}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 5,
+                                                    height: 30,
+                                                    padding: '0 10px',
+                                                    background: '#fff',
+                                                    border: `1px solid ${C.border}`,
+                                                    borderRadius: 7,
+                                                    fontSize: 12.5,
+                                                    fontWeight: 500,
+                                                    color: C.text,
+                                                    cursor: 'pointer',
+                                                    whiteSpace: 'nowrap',
+                                                }}
+                                            >
+                                                <AIcon
+                                                    name="pencil"
+                                                    size={13}
+                                                    color={C.muted}
+                                                />
+                                                Koreksi
+                                            </button>
+                                        </td>
+                                    )}
                                 </tr>
                             );
                         })}
