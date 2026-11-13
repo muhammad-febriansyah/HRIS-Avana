@@ -39,7 +39,7 @@ class AttendanceFines
      */
     public static function generate(int $tenantId, string $startDate, string $endDate, ?int $employeeId = null): array
     {
-        self::dropOverturnedAbsences($tenantId, $startDate, $endDate, $employeeId);
+        self::dropOverturnedPenalties($tenantId, $startDate, $endDate, $employeeId);
 
         $attendances = Attendance::query()
             ->forTenant($tenantId)
@@ -91,19 +91,20 @@ class AttendanceFines
     }
 
     /**
-     * Remove the automatic Alpa penalty from a day that is no longer Alpa.
+     * Remove the automatic Alpa or Terlambat penalty from a day whose status
+     * has since changed.
      *
-     * The nightly marker writes Alpa before anyone can object; a late night
-     * shift clock-in or an approved correction can overturn it afterwards. The
-     * penalty generated from the old status would otherwise stay on the
-     * employee's record for a day they did work. Only rows this class wrote
-     * are touched — a penalty HR typed in by hand stands.
+     * The nightly marker writes Alpa before anyone can object, and a late mark
+     * can be corrected (or re-judged) afterwards. The penalty generated from
+     * the old status would otherwise stay on the employee's record for a day
+     * that no longer carries it. Only rows this class wrote are touched — a
+     * penalty HR typed in by hand stands.
      */
-    private static function dropOverturnedAbsences(int $tenantId, string $startDate, string $endDate, ?int $employeeId): void
+    private static function dropOverturnedPenalties(int $tenantId, string $startDate, string $endDate, ?int $employeeId): void
     {
         AttendancePenalty::query()
             ->where('tenant_id', $tenantId)
-            ->where('violation_type', 'absent')
+            ->whereIn('violation_type', ['absent', 'late'])
             ->where('notes', 'like', 'Otomatis dari absensi%')
             ->when($employeeId !== null, fn ($query) => $query->where('employee_id', $employeeId))
             ->whereDate('date', '>=', $startDate)
@@ -116,7 +117,7 @@ class AttendanceFines
                     // date() on both sides: SQLite keeps a cast date with its
                     // midnight time, MySQL keeps the bare date.
                     ->whereRaw('date(attendances.date) = date(attendance_penalties.date)')
-                    ->where('attendances.status', 'absent');
+                    ->whereColumn('attendances.status', 'attendance_penalties.violation_type');
             })
             ->delete();
     }

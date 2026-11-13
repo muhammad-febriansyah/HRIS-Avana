@@ -12,7 +12,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('avana:reconcile-attendance-lateness {--tenant= : Tenant ID; every tenant when omitted} {--from= : Y-m-d, defaults to 90 days ago} {--to= : Y-m-d, defaults to today}')]
-#[Description('Re-judge attendance rows still stuck at their as-clocked-in state against the roster shift now on record for their date — a one-off backfill for rows punched in before the roster caught up.')]
+#[Description('Re-judge attendance rows against the roster shift now on record for their date, and clear late marks that were only seconds past the shift start.')]
 class ReconcileAttendanceLateness extends Command
 {
     /**
@@ -31,6 +31,19 @@ class ReconcileAttendanceLateness extends Command
 
         $checked = 0;
         $changed = 0;
+
+        // Lateness used to be judged to the second, so a 07:00:40 punch on a
+        // 07:00 shift with no tolerance was Terlambat with 0 late minutes.
+        // Judged to the minute it is on time; a late row with 0 minutes can
+        // only be that case, whatever the shift's tolerance.
+        $subMinute = Attendance::query()
+            ->whereIn('tenant_id', $tenantIds)
+            ->whereNotNull('clock_in_at')
+            ->where('status', 'late')
+            ->where('late_minutes', 0)
+            ->whereDate('date', '>=', $from)
+            ->whereDate('date', '<=', $to)
+            ->update(['status' => 'present', 'updated_at' => now()]);
 
         foreach ($tenantIds as $tenantId) {
             $shifts = Shift::forTenant($tenantId)->get()->keyBy('id');
@@ -70,6 +83,7 @@ class ReconcileAttendanceLateness extends Command
                 });
         }
 
+        $this->info("Re-judged {$subMinute} sub-minute late row(s) as on time.");
         $this->info("Checked {$checked} attendance row(s), reconciled {$changed}.");
 
         return self::SUCCESS;

@@ -110,13 +110,18 @@ final class Roster
             ->setTimeFromTimeString((string) $shift->start_time);
         $allowed = $start->copy()->addMinutes((int) $shift->late_tolerance_minutes);
 
-        if ($clockedAt->lessThanOrEqualTo($allowed)) {
+        // Judged to the minute, as the punch is shown: 07:00:40 reads "07:00"
+        // on every screen, so it cannot be late for a 07:00 shift. Comparing
+        // the seconds marked it Terlambat with 0 late minutes.
+        $clockedMinute = $clockedAt->copy()->startOfMinute();
+
+        if ($clockedMinute->lessThanOrEqualTo($allowed)) {
             return ['status' => 'present', 'late_minutes' => 0, 'shift_id' => $shift->id];
         }
 
         return [
             'status' => 'late',
-            'late_minutes' => (int) $start->diffInMinutes($clockedAt),
+            'late_minutes' => (int) $start->diffInMinutes($clockedMinute),
             'shift_id' => $shift->id,
         ];
     }
