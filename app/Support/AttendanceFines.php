@@ -39,6 +39,8 @@ class AttendanceFines
      */
     public static function generate(int $tenantId, string $startDate, string $endDate, ?int $employeeId = null): array
     {
+        self::dropOverturnedAbsences($tenantId, $startDate, $endDate, $employeeId);
+
         $attendances = Attendance::query()
             ->forTenant($tenantId)
             ->whereIn('status', self::GENERATABLE_STATUSES)
@@ -86,6 +88,37 @@ class AttendanceFines
         }
 
         return ['created' => $created, 'fined' => $fined];
+    }
+
+    /**
+     * Remove the automatic Alpa penalty from a day that is no longer Alpa.
+     *
+     * The nightly marker writes Alpa before anyone can object; a late night
+     * shift clock-in or an approved correction can overturn it afterwards. The
+     * penalty generated from the old status would otherwise stay on the
+     * employee's record for a day they did work. Only rows this class wrote
+     * are touched — a penalty HR typed in by hand stands.
+     */
+    private static function dropOverturnedAbsences(int $tenantId, string $startDate, string $endDate, ?int $employeeId): void
+    {
+        AttendancePenalty::query()
+            ->where('tenant_id', $tenantId)
+            ->where('violation_type', 'absent')
+            ->where('notes', 'like', 'Otomatis dari absensi%')
+            ->when($employeeId !== null, fn ($query) => $query->where('employee_id', $employeeId))
+            ->whereDate('date', '>=', $startDate)
+            ->whereDate('date', '<=', $endDate)
+            ->whereNotExists(function ($query): void {
+                $query->selectRaw('1')
+                    ->from('attendances')
+                    ->whereColumn('attendances.tenant_id', 'attendance_penalties.tenant_id')
+                    ->whereColumn('attendances.employee_id', 'attendance_penalties.employee_id')
+                    // date() on both sides: SQLite keeps a cast date with its
+                    // midnight time, MySQL keeps the bare date.
+                    ->whereRaw('date(attendances.date) = date(attendance_penalties.date)')
+                    ->where('attendances.status', 'absent');
+            })
+            ->delete();
     }
 
     /**

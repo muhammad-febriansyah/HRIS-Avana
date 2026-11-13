@@ -29,6 +29,14 @@ Schedule::command('avana:scan-attrition-alerts')->dailyAt('07:30');
 // them at half past ten.
 Schedule::command('avana:remind-attendance')->hourlyAt(30);
 
+// Close yesterday's attendance: anyone the roster (or the office week) expected
+// who never clocked in gets an Alpa row, so the rekap, the reports and payroll
+// see the missed day. Hourly because the hour it acts on is each tenant's own.
+Schedule::command('avana:mark-absences')
+    ->hourlyAt(10)
+    ->withoutOverlapping()
+    ->onOneServer();
+
 // A payroll may be locked before employees are allowed to see its slips. Scan
 // hourly so each H-1 release is announced only once, near the start of the day.
 Schedule::command('avana:notify-released-payslips')

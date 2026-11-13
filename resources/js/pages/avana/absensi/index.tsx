@@ -14,6 +14,7 @@ const STATUS_OPTIONS = [
     { value: 'leave', label: 'Cuti / Izin' },
     { value: 'absent', label: 'Alpa' },
     { value: 'incomplete', label: 'Belum Lengkap' },
+    { value: 'not_in', label: 'Belum Absen (hari ini)' },
 ];
 
 const filterControl: CSSProperties = {

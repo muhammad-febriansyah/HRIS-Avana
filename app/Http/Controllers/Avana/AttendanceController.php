@@ -8,12 +8,14 @@ use App\Http\Resources\Avana\AttendanceResource;
 use App\Models\Attendance;
 use App\Models\Branch;
 use App\Models\Employee;
+use App\Services\AbsenceMarker;
 use App\Support\PrivateFile;
 use App\Support\TenantTime;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -42,6 +44,12 @@ class AttendanceController extends Controller
         'incomplete' => 'Belum Lengkap',
         'need_correction' => 'Perlu Koreksi',
     ];
+
+    /**
+     * Status filter value for the virtual "Belum Absen" rows. Not a stored
+     * status — the row does not exist until the day closes as Alpa.
+     */
+    private const NOT_YET_IN_STATUS = 'not_in';
 
     /**
      * Deterministic avatar background palette.
@@ -101,10 +109,18 @@ class AttendanceController extends Controller
 
         $this->applyBranchScope($query, $request->user());
 
-        $attendances = $query
-            ->orderBy($sort, $direction)
-            ->paginate($request->integer('per_page', 10))
-            ->withQueryString();
+        $notYetIn = $this->notYetIn($request, (int) $tenantId, $fromString, $toString);
+
+        // Today's single-day rekap lists the no-shows as rows of their own, so
+        // the table HR reads shows everyone the day expects — not only those
+        // who opened the app. Ranges keep the plain paginated query: past days
+        // already carry real Alpa rows, and merging a month in memory would
+        // not scale.
+        $attendances = $notYetIn !== null && ! $isRange && in_array($request->query('status'), [null, '', self::NOT_YET_IN_STATUS], true)
+            ? $this->withNotYetInRows($request, $query->orderBy($sort, $direction)->get(), $notYetIn, $fromString)
+            : AttendanceResource::collection(
+                $query->orderBy($sort, $direction)->paginate($request->integer('per_page', 10))->withQueryString(),
+            );
 
         $statusCountQuery = Attendance::forTenant($tenantId)
             ->whereDate('date', '>=', $fromString)
@@ -118,7 +134,7 @@ class AttendanceController extends Controller
             ->pluck('c', 'status');
 
         return Inertia::render('avana/absensi/index', [
-            'attendances' => AttendanceResource::collection($attendances),
+            'attendances' => $attendances,
             'filters' => array_merge(
                 $request->only(['search', 'status', 'branch_id', 'sort', 'direction', 'per_page']),
                 ['date_from' => $fromString, 'date_to' => $toString],
@@ -136,11 +152,120 @@ class AttendanceController extends Controller
                 'terlambat' => (int) ($statusCounts['late'] ?? 0),
                 'izin' => (int) ($statusCounts['leave'] ?? 0),
                 'alpa' => (int) ($statusCounts['absent'] ?? 0),
+                'belum_absen' => $notYetIn === null ? null : count($notYetIn),
             ],
             'branches' => Branch::forTenant($tenantId)
                 ->orderBy('name')
                 ->get(['id', 'name']),
         ]);
+    }
+
+    /**
+     * Today's attendance rows followed by one "Belum Absen" row per no-show,
+     * paginated in memory in the same shape the resource paginator sends.
+     *
+     * The virtual rows carry a negative id (the employee's, negated) so they
+     * never collide with an attendance id, and no coordinates, so the table
+     * does not open a detail view for a record that does not exist.
+     *
+     * @param  Collection<int, Attendance>  $records
+     * @param  array<int, array{id: int, name: string, employee_number: string|null, branch: string|null}>  $notYetIn
+     * @return array{data: list<array<string, mixed>>, meta: array<string, int|null>, links: array<string, null>}
+     */
+    private function withNotYetInRows(Request $request, Collection $records, array $notYetIn, string $date): array
+    {
+        $search = mb_strtolower(trim((string) $request->query('search', '')));
+        $day = Carbon::parse($date);
+
+        $virtual = collect($notYetIn)
+            ->filter(fn (array $employee): bool => $search === ''
+                || str_contains(mb_strtolower($employee['name']), $search)
+                || str_contains(mb_strtolower((string) $employee['employee_number']), $search))
+            ->map(fn (array $employee): array => [
+                'id' => -$employee['id'],
+                'employee' => [
+                    'id' => $employee['id'],
+                    'name' => $employee['name'],
+                    'employee_number' => $employee['employee_number'],
+                    'initials' => $this->initials($employee['name']),
+                    'avatar_color' => $this->avatarColor($employee['name']),
+                ],
+                'shift' => null,
+                'date' => $day->format('d M Y'),
+                'date_raw' => $date,
+                'clock_in' => '—',
+                'clock_out' => '—',
+                'late_minutes' => 0,
+                'telat' => '—',
+                'status' => self::NOT_YET_IN_STATUS,
+                'status_label' => 'Belum Absen',
+                'location_status' => null,
+                'clock_in_coords' => null,
+                'clock_out_coords' => null,
+                'work_location' => null,
+                'distance_meter' => null,
+            ]);
+
+        $rows = collect(AttendanceResource::collection($records)->resolve($request))
+            ->concat($virtual)
+            ->values();
+
+        $perPage = max(1, $request->integer('per_page', 10));
+        $total = $rows->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = min($lastPage, max(1, $request->integer('page', 1)));
+        $slice = $rows->slice(($page - 1) * $perPage, $perPage)->values();
+
+        return [
+            'data' => $slice->all(),
+            'meta' => [
+                'current_page' => $page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+                'from' => $slice->isEmpty() ? null : ($page - 1) * $perPage + 1,
+                'to' => $slice->isEmpty() ? null : ($page - 1) * $perPage + $slice->count(),
+            ],
+            'links' => ['first' => null, 'last' => null, 'prev' => null, 'next' => null],
+        ];
+    }
+
+    /**
+     * Who is due at work today and has no attendance row yet — null unless the
+     * range covers today.
+     *
+     * Past days carry a real Alpa row once the nightly marker has closed them;
+     * today is still open, so a missing clock-in is "belum absen", not alpa.
+     *
+     * @return array<int, array{id: int, name: string, employee_number: string|null, branch: string|null}>|null
+     */
+    private function notYetIn(Request $request, int $tenantId, string $from, string $to): ?array
+    {
+        $today = TenantTime::today($tenantId);
+
+        if ($today < $from || $today > $to) {
+            return null;
+        }
+
+        $branchId = $request->query('branch_id');
+
+        $missing = AbsenceMarker::missing($tenantId, Carbon::parse($today), function ($query) use ($request, $branchId): void {
+            $query->when(is_numeric($branchId), fn ($q) => $q->where('branch_id', (int) $branchId));
+            $this->applyBranchScope($query, $request->user());
+        });
+
+        $branchNames = Branch::query()->whereKey($missing->pluck('branch_id')->filter()->unique())->pluck('name', 'id');
+
+        return $missing
+            ->sortBy('full_name')
+            ->map(fn (Employee $employee): array => [
+                'id' => (int) $employee->id,
+                'name' => (string) $employee->full_name,
+                'employee_number' => $employee->employee_number,
+                'branch' => $employee->branch_id !== null ? ($branchNames[$employee->branch_id] ?? null) : null,
+            ])
+            ->values()
+            ->all();
     }
 
     /**

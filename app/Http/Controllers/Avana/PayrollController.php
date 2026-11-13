@@ -1046,6 +1046,7 @@ class PayrollController extends Controller
                     'earnings' => $pay['earnings'],
                     'deductions' => $pay['deductions'],
                     'present_days' => $pay['present_days'],
+                    'absence' => $pay['absence'],
                     'attendance_cut_off' => $pay['attendance_cut_off'],
                     'overtime_hours' => $pay['overtime_hours'],
                     'overtime' => $pay['overtime_snapshot'],
@@ -2549,6 +2550,22 @@ class PayrollController extends Controller
             return null;
         }
 
+        if (str_starts_with($row['name'], 'Potongan Alpa')) {
+            $absence = $pay['absence'] ?? null;
+
+            if ($absence === null) {
+                return null;
+            }
+
+            return sprintf(
+                '%d hari Alpa × gaji pokok harian Rp %s (gaji pokok ÷ %d %s). Data: Kehadiran → Absensi.',
+                $absence['days'],
+                number_format((float) $absence['daily_rate'], 0, ',', '.'),
+                $absence['divisor'],
+                $absence['divisor_source'] === 'master_gaji' ? 'hari, Jumlah Hari di Master Gaji' : 'hari kerja Senin–Jumat di periode',
+            );
+        }
+
         if ($row['name'] === 'Denda Absensi') {
             $window = $pay['payday_snapshot']['window'] ?? null;
 
@@ -2600,6 +2617,7 @@ class PayrollController extends Controller
      *     deduction: float,
      *     net: float,
      *     present_days: int,
+     *     absence: array{days: int, amount: float, daily_rate: float, divisor: int, divisor_source: string, skipped: string|null}|null,
      *     attendance_cut_off: array{start: string|null, end: string|null, settled: bool, deferred: list<string>},
      *     basic: float,
      * }
@@ -2696,6 +2714,7 @@ class PayrollController extends Controller
         /** @var list<array{name: string, amount: float}> $deductions */
         $deductions = [];
         $basic = 0.0;
+        $basicFollowsAttendance = false;
         $overtimeBasis = 0.0;
         $bpjsBasis = 0.0;
         $hasBpjsBaseComponent = false;
@@ -2751,6 +2770,10 @@ class PayrollController extends Controller
                 $deferredAttendance[] = (string) $component->name;
 
                 continue;
+            }
+
+            if (BasicWageComponent::matches($component->code) && $component->calc_basis === 'per_present_day') {
+                $basicFollowsAttendance = true;
             }
 
             if ($component->basis_type !== null) {
@@ -2838,6 +2861,18 @@ class PayrollController extends Controller
                 if ($masterComponent->is_prorate && ! $attendanceBased && $masterProrateFactor !== null) {
                     $amount = round($amount * $masterProrateFactor);
                     $proratable = false;
+
+                    // Prorated by the present-day count, the basic already
+                    // leaves an Alpa day unpaid — docking it again would
+                    // charge the same day twice.
+                    if (BasicWageComponent::matches($component->code)
+                        && ! in_array($this->masterDayRule($master)['basis'], ['hari_kalender', 'hari_kerja'], true)) {
+                        $basicFollowsAttendance = true;
+                    }
+                }
+
+                if (BasicWageComponent::matches($component->code) && $component->calc_basis === 'per_present_day') {
+                    $basicFollowsAttendance = true;
                 }
 
                 $this->collectComponent($component, $amount, $proratable, $earnings, $deductions, $basic, $overtimeBasis, $bpjsBasis, $hasBpjsBaseComponent, (bool) $masterComponent->is_bpjs_exempt);
@@ -3023,6 +3058,20 @@ class PayrollController extends Controller
             $earnings,
         ));
 
+        // Potongan Alpa: the wage of a day not worked is not owed. It is pay
+        // never earned rather than a charge on pay earned, so it comes off the
+        // PPh 21 base as well; the BPJS base stays on the contracted wage.
+        $absence = $this->absenceDeduction($employee, $tenantId, $attendanceRange, $master, $fullBasic, $basic, $basicFollowsAttendance);
+
+        if ($absence !== null && $absence['amount'] > 0) {
+            $deductions[] = [
+                'name' => "Potongan Alpa ({$absence['days']} hari)",
+                'amount' => $absence['amount'],
+            ];
+
+            $taxableGross = max(0.0, $taxableGross - $absence['amount']);
+        }
+
         // Recurring loan installments deducted from take-home pay.
         [$recurring, $loanIds] = $this->recurringDeductions($employee, $tenantId);
 
@@ -3110,6 +3159,9 @@ class PayrollController extends Controller
             'deduction' => $deduction,
             'net' => $gross - $deduction,
             'present_days' => $presentDays,
+            // Alpa days in the window and what they cost, or why nothing was
+            // docked for them — null when there were none.
+            'absence' => $absence,
             // Which cut-off the per-day attendance allowance waits for, whether
             // it has closed, and the component lines held back while it has not.
             'attendance_cut_off' => [
@@ -3417,14 +3469,7 @@ class PayrollController extends Controller
             return null;
         }
 
-        // A referenced "Perhitungan Hari" method (Setting Komponen master) wins
-        // over the master's inline day_calc_method/day_divisor when assigned.
-        $method = $master->day_calc_method_id !== null
-            ? DayCalcMethod::forTenant($master->tenant_id)->find($master->day_calc_method_id)
-            : null;
-
-        $basis = $method->basis ?? $master->day_calc_method;
-        $divisor = $method?->divisor ?? $master->day_divisor;
+        ['basis' => $basis, 'divisor' => $divisor] = $this->masterDayRule($master);
 
         if (! $divisor) {
             return null;
@@ -3437,6 +3482,83 @@ class PayrollController extends Controller
         };
 
         return min(1.0, $worked / $divisor);
+    }
+
+    /**
+     * The Master Gaji's Perhitungan Hari basis and Jumlah Hari divisor.
+     *
+     * A referenced "Perhitungan Hari" method (Setting Komponen master) wins
+     * over the master's inline day_calc_method/day_divisor when assigned.
+     *
+     * @return array{basis: string|null, divisor: int|null}
+     */
+    private function masterDayRule(SalaryMaster $master): array
+    {
+        $method = $master->day_calc_method_id !== null
+            ? DayCalcMethod::forTenant($master->tenant_id)->find($master->day_calc_method_id)
+            : null;
+
+        $divisor = $method?->divisor ?? $master->day_divisor;
+
+        return [
+            'basis' => $method->basis ?? $master->day_calc_method,
+            'divisor' => $divisor ? (int) $divisor : null,
+        ];
+    }
+
+    /**
+     * Potongan Alpa: the basic wage for each day marked Alpa in the window —
+     * no work, no pay (UU 13/2003 Pasal 93 ayat 1).
+     *
+     * The daily wage is the full monthly basic over the Master Gaji's Jumlah
+     * Hari divisor, or over the Monday–Friday days in the window when no
+     * divisor is set. Nothing is docked when the basic wage already follows
+     * attendance — paid per present day, or prorated by present days through
+     * the master — since the missing day is then already unpaid. Capped at
+     * the basic actually paid, so a month of Alpa never turns pay negative.
+     *
+     * @param  array{0: string, 1: string}|null  $range
+     * @return array{days: int, amount: float, daily_rate: float, divisor: int, divisor_source: string, skipped: string|null}|null
+     */
+    private function absenceDeduction(Employee $employee, int $tenantId, ?array $range, ?SalaryMaster $master, float $fullBasic, float $paidBasic, bool $basicFollowsAttendance): ?array
+    {
+        if ($range === null) {
+            return null;
+        }
+
+        $days = Attendance::forTenant($tenantId)
+            ->where('employee_id', $employee->id)
+            ->whereBetween('date', $range)
+            ->where('status', 'absent')
+            ->distinct()
+            ->count('date');
+
+        if ($days === 0) {
+            return null;
+        }
+
+        $masterDivisor = $master !== null ? $this->masterDayRule($master)['divisor'] : null;
+        $divisor = $masterDivisor ?? $this->weekdaysBetween($range[0], $range[1]);
+        $source = $masterDivisor !== null ? 'master_gaji' : 'hari_kerja';
+
+        $skipped = match (true) {
+            $basicFollowsAttendance => 'gaji_pokok_mengikuti_kehadiran',
+            $fullBasic <= 0.0 => 'tanpa_gaji_pokok',
+            $divisor <= 0 => 'tanpa_pembagi',
+            default => null,
+        };
+
+        $dailyRate = $divisor > 0 ? round($fullBasic / $divisor, 2) : 0.0;
+        $amount = $skipped === null ? min($paidBasic, round($dailyRate * $days)) : 0.0;
+
+        return [
+            'days' => $days,
+            'amount' => max(0.0, $amount),
+            'daily_rate' => $dailyRate,
+            'divisor' => $divisor,
+            'divisor_source' => $source,
+            'skipped' => $skipped,
+        ];
     }
 
     /**

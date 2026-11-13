@@ -79,6 +79,13 @@ export interface AbsensiProps {
     };
     filters: AbsensiFilters;
     range: { from: string; to: string; display: string; is_range: boolean };
-    kpis: { hadir: number; terlambat: number; izin: number; alpa: number };
+    kpis: {
+        hadir: number;
+        terlambat: number;
+        izin: number;
+        alpa: number;
+        /** Due today with no clock-in yet; null when the range excludes today. */
+        belum_absen: number | null;
+    };
     branches: BranchOption[];
 }

@@ -5,9 +5,8 @@ namespace App\Console\Commands;
 use App\Models\Attendance;
 use App\Models\Employee;
 use App\Services\FcmService;
-use App\Services\LeaveAttendanceMarker;
-use App\Support\Roster;
 use App\Support\TenantTime;
+use App\Support\Workday;
 use Carbon\CarbonInterface;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -107,7 +106,7 @@ class RemindAttendance extends Command
         return Employee::query()
             ->where('status', 'active')
             ->whereNotNull('user_id')
-            ->get(['id', 'tenant_id', 'user_id']);
+            ->get(['id', 'tenant_id', 'user_id', 'join_date', 'resign_date']);
     }
 
     /**
@@ -127,30 +126,8 @@ class RemindAttendance extends Command
 
         return $employees
             ->reject(fn (Employee $employee): bool => in_array($employee->id, $clockedInEmployeeIds, true))
-            ->filter(fn (Employee $employee): bool => $this->isDueToday($employee, $today))
+            ->groupBy('tenant_id')
+            ->flatMap(fn (Collection $tenantEmployees): Collection => Workday::dueAmong($tenantEmployees->values(), $today))
             ->values();
-    }
-
-    /**
-     * Whether today is a working day for this employee.
-     *
-     * An approved leave answers first — someone on cuti is not late, they are
-     * away. Then the roster: a row with a shift means they are due, a row with
-     * no shift is a day off. No row at all falls back to the ordinary Monday
-     * to Friday week.
-     */
-    private function isDueToday(Employee $employee, CarbonInterface $today): bool
-    {
-        if (LeaveAttendanceMarker::covers($employee->tenant_id, $employee->id, $today->toDateString())) {
-            return false;
-        }
-
-        $schedule = Roster::scheduleFor((int) $employee->tenant_id, (int) $employee->id, $today);
-
-        if ($schedule !== null) {
-            return $schedule->shift_id !== null;
-        }
-
-        return ! $today->isWeekend();
     }
 }

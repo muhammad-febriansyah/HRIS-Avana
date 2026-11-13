@@ -149,6 +149,7 @@ export function statusBadge(st: string): Badge {
         Hadir: ['#16A34A', 'rgba(22,163,74,.1)'],
         Terlambat: ['#D97706', 'rgba(217,119,6,.1)'],
         Alpa: ['#DC2626', 'rgba(220,38,38,.1)'],
+        'Belum Absen': ['#7C3AED', 'rgba(124,58,237,.1)'],
         Cuti: ['#2F54C9', 'rgba(47,84,201,.1)'],
         'Belum Lengkap': ['#D97706', 'rgba(217,119,6,.1)'],
         'Perlu Koreksi': ['#D97706', 'rgba(217,119,6,.1)'],

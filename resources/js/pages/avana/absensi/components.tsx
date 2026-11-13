@@ -9,7 +9,8 @@ interface KpiStripProps {
 
 /**
  * Daily status KPI cards. Mirrors the prototype layout, fed by the daily
- * status counts (hadir / terlambat / izin / alpa).
+ * status counts (hadir / terlambat / izin / alpa), plus "Belum Absen" while
+ * the range covers today.
  */
 export function KpiStrip({ kpis }: KpiStripProps) {
     const kpiCards: { label: string; value: number; color: string }[] = [
@@ -19,12 +20,20 @@ export function KpiStrip({ kpis }: KpiStripProps) {
         { label: 'Alpa', value: kpis.alpa, color: C.red },
     ];
 
+    if (kpis.belum_absen !== null) {
+        kpiCards.push({
+            label: 'Belum Absen (hari ini)',
+            value: kpis.belum_absen,
+            color: C.violet,
+        });
+    }
+
     return (
         <div
             className="avn-kpi"
             style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(4,1fr)',
+                gridTemplateColumns: `repeat(${kpiCards.length},1fr)`,
                 gap: 12,
             }}
         >
@@ -99,6 +108,10 @@ export function locationBadge(status: string | null): LocationBadge {
                 geofenced: false,
             };
         default:
-            return { label: 'Tanpa geofence', color: C.faint, geofenced: false };
+            return {
+                label: 'Tanpa geofence',
+                color: C.faint,
+                geofenced: false,
+            };
     }
 }
