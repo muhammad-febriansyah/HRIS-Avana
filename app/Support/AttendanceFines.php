@@ -5,6 +5,8 @@ namespace App\Support;
 use App\Models\Attendance;
 use App\Models\AttendancePenalty;
 use App\Models\AttendancePenaltyRule;
+use App\Models\PayrollPeriod;
+use Illuminate\Support\Collection;
 
 /**
  * Turns attendance violations into penalty rows under the tenant's late-fine
@@ -20,6 +22,18 @@ use App\Models\AttendancePenaltyRule;
  */
 class AttendanceFines
 {
+    /** Note prefix marking a penalty this class wrote, not one HR typed in. */
+    public const AUTO_NOTE_PREFIX = 'Otomatis dari absensi';
+
+    /** A penalty that counts — on the Sanksi list and in payroll. */
+    public const STATUS_ACTIVE = 'active';
+
+    /**
+     * An automatic penalty HR cancelled. Kept rather than deleted, so the next
+     * generate — every payroll run calls one — does not write it again.
+     */
+    public const STATUS_VOID = 'void';
+
     /** @var array<int, string> */
     public const GENERATABLE_STATUSES = ['late', 'absent', 'incomplete'];
 
@@ -54,6 +68,9 @@ class AttendanceFines
         }
 
         $tiers = AttendancePenaltyRule::tiersFor($tenantId);
+        $lockedPeriods = PayrollPeriod::forTenant($tenantId)
+            ->where('status', 'locked')
+            ->get(['start_date', 'end_date']);
 
         $created = 0;
         $fined = 0;
@@ -63,19 +80,21 @@ class AttendanceFines
                 ? AttendancePenaltyRule::match($tiers, (int) $attendance->late_minutes)
                 : null;
 
+            $date = $attendance->date->format('Y-m-d');
+            $terms = [
+                'penalty_type' => $tier?->penalty_type ?? 'warning',
+                'amount' => $tier?->amount ?? 0,
+                'notes' => self::note($attendance, $tier),
+            ];
+
             $penalty = AttendancePenalty::firstOrCreate(
                 [
                     'tenant_id' => $tenantId,
                     'employee_id' => $attendance->employee_id,
-                    'date' => $attendance->date->format('Y-m-d'),
+                    'date' => $date,
                     'violation_type' => $attendance->status,
                 ],
-                [
-                    'penalty_type' => $tier?->penalty_type ?? 'warning',
-                    'amount' => $tier?->amount ?? 0,
-                    'notes' => self::note($attendance, $tier),
-                    'status' => 'active',
-                ],
+                $terms + ['status' => self::STATUS_ACTIVE],
             );
 
             if ($penalty->wasRecentlyCreated) {
@@ -84,6 +103,18 @@ class AttendanceFines
                 if ((float) $penalty->amount > 0) {
                     $fined++;
                 }
+
+                continue;
+            }
+
+            // An automatic fine follows the record it came from: the tier HR
+            // re-priced, or the late minutes a correction changed. A fine HR
+            // cancelled stays cancelled, one typed in by hand stands, and one
+            // inside a locked payroll period stays as it was paid.
+            if ($penalty->status === self::STATUS_ACTIVE
+                && self::isAutomatic($penalty)
+                && ! self::inLockedPeriod($lockedPeriods, $date)) {
+                $penalty->update($terms);
             }
         }
 
@@ -105,7 +136,7 @@ class AttendanceFines
         AttendancePenalty::query()
             ->where('tenant_id', $tenantId)
             ->whereIn('violation_type', ['absent', 'late'])
-            ->where('notes', 'like', 'Otomatis dari absensi%')
+            ->where('notes', 'like', self::AUTO_NOTE_PREFIX.'%')
             ->when($employeeId !== null, fn ($query) => $query->where('employee_id', $employeeId))
             ->whereDate('date', '>=', $startDate)
             ->whereDate('date', '<=', $endDate)
@@ -120,6 +151,27 @@ class AttendanceFines
                     ->whereColumn('attendances.status', 'attendance_penalties.violation_type');
             })
             ->delete();
+    }
+
+    /**
+     * Whether the penalty was written by this class rather than by hand.
+     */
+    public static function isAutomatic(AttendancePenalty $penalty): bool
+    {
+        return str_starts_with((string) $penalty->notes, self::AUTO_NOTE_PREFIX);
+    }
+
+    /**
+     * Whether the date falls in one of the tenant's locked payroll periods.
+     *
+     * @param  Collection<int, PayrollPeriod>  $lockedPeriods
+     */
+    private static function inLockedPeriod(Collection $lockedPeriods, string $date): bool
+    {
+        return $lockedPeriods->contains(fn (PayrollPeriod $period): bool => $period->start_date !== null
+            && $period->end_date !== null
+            && $period->start_date->toDateString() <= $date
+            && $period->end_date->toDateString() >= $date);
     }
 
     /**
@@ -142,6 +194,6 @@ class AttendanceFines
             );
         }
 
-        return 'Otomatis dari absensi: '.$label;
+        return self::AUTO_NOTE_PREFIX.': '.$label;
     }
 }

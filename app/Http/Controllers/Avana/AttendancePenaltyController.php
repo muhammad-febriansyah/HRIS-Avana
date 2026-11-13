@@ -49,6 +49,7 @@ class AttendancePenaltyController extends Controller
 
         $penalties = AttendancePenalty::query()
             ->forTenant($tenantId)
+            ->where('status', '!=', AttendanceFines::STATUS_VOID)
             ->with('employee:id,full_name,employee_number')
             ->when($request->query('search'), function ($query, $search): void {
                 $query->whereHas('employee', function ($q) use ($search): void {
@@ -231,7 +232,14 @@ class AttendancePenaltyController extends Controller
 
         $this->authorize('delete', Attendance::class);
 
-        $penalty->delete();
+        // An automatic penalty is voided, not deleted: the payroll run
+        // regenerates penalties from attendance, and a deleted one would be
+        // written again — the fine HR waived would reappear on the payslip.
+        if (AttendanceFines::isAutomatic($penalty)) {
+            $penalty->update(['status' => AttendanceFines::STATUS_VOID]);
+        } else {
+            $penalty->delete();
+        }
 
         return back()->with('success', 'Sanksi absensi dihapus');
     }

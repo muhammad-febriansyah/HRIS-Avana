@@ -11,8 +11,10 @@ use App\Models\PayrollRun;
 use App\Models\PayrollRunItem;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\AttendanceFines;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Support\Facades\Route;
+use Inertia\Testing\AssertableInertia;
 
 use function Pest\Laravel\actingAs;
 
@@ -212,4 +214,65 @@ it('leaves a fine dated outside the period alone', function (): void {
     $names = collect($item->calculation_snapshot['deductions'] ?? [])->pluck('name');
 
     expect($names)->not->toContain('Denda Absensi');
+});
+
+it('keeps a fine HR deleted from coming back on the next generate', function (): void {
+    seedLateTiers($this->tenant->id);
+    lateAttendance($this->tenant->id, $this->employee, '2026-05-05', 25);
+
+    AttendanceFines::generate($this->tenant->id, '2026-05-01', '2026-05-31', $this->employee->id);
+    $fine = AttendancePenalty::forTenant($this->tenant->id)->where('employee_id', $this->employee->id)->firstOrFail();
+
+    actingAs($this->admin)->delete(route('avana.sanksi.destroy', $fine))->assertSessionHas('success');
+
+    // The payroll run calls the generator before reading fines.
+    AttendanceFines::generate($this->tenant->id, '2026-05-01', '2026-05-31', $this->employee->id);
+
+    expect(AttendancePenalty::forTenant($this->tenant->id)
+        ->where('employee_id', $this->employee->id)
+        ->where('status', 'active')
+        ->exists())->toBeFalse();
+
+    // And it no longer shows on the Sanksi list.
+    actingAs($this->admin)
+        ->get(route('avana.sanksi'))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('penalties.data', fn ($rows): bool => ! collect($rows)->contains('id', $fine->id)));
+});
+
+it('re-prices an automatic fine when the tier or the late minutes change', function (): void {
+    seedLateTiers($this->tenant->id);
+    $attendance = lateAttendance($this->tenant->id, $this->employee, '2026-05-05', 25);
+
+    AttendanceFines::generate($this->tenant->id, '2026-05-01', '2026-05-31', $this->employee->id);
+    $fine = fn () => AttendancePenalty::forTenant($this->tenant->id)->where('employee_id', $this->employee->id)->firstOrFail();
+    expect((float) $fine()->amount)->toBe(20000.0);
+
+    // HR raises the 10–30 band.
+    AttendancePenaltyRule::forTenant($this->tenant->id)->where('min_minutes', 10)->update(['amount' => 25_000]);
+    AttendanceFines::generate($this->tenant->id, '2026-05-01', '2026-05-31', $this->employee->id);
+    expect((float) $fine()->amount)->toBe(25000.0);
+
+    // A correction moves the arrival into the 30–60 band.
+    $attendance->update(['late_minutes' => 40]);
+    AttendanceFines::generate($this->tenant->id, '2026-05-01', '2026-05-31', $this->employee->id);
+    expect((float) $fine()->amount)->toBe(50000.0)
+        ->and($fine()->notes)->toContain('40 menit');
+});
+
+it('leaves fines inside a locked payroll period as they were paid', function (): void {
+    seedLateTiers($this->tenant->id);
+    lateAttendance($this->tenant->id, $this->employee, '2026-05-05', 25);
+    AttendanceFines::generate($this->tenant->id, '2026-05-01', '2026-05-31', $this->employee->id);
+
+    PayrollPeriod::create([
+        'tenant_id' => $this->tenant->id, 'code' => 'LOCK-SPEC', 'name' => 'Mei terkunci',
+        'start_date' => '2026-05-01', 'end_date' => '2026-05-31', 'status' => 'locked',
+    ]);
+    AttendancePenaltyRule::forTenant($this->tenant->id)->where('min_minutes', 10)->update(['amount' => 99_000]);
+
+    AttendanceFines::generate($this->tenant->id, '2026-05-01', '2026-05-31', $this->employee->id);
+
+    expect((float) AttendancePenalty::forTenant($this->tenant->id)->where('employee_id', $this->employee->id)->value('amount'))
+        ->toBe(20000.0);
 });
