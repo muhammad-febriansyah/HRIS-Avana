@@ -57,6 +57,9 @@ class AttendanceController extends Controller
      */
     private const NOT_YET_IN_STATUS = 'not_in';
 
+    /** Page sizes the rekap offers; anything else falls back to the first. */
+    private const PER_PAGE_OPTIONS = [10, 25, 50, 100];
+
     /** Most rows one bulk correction may touch. */
     private const BULK_CORRECTION_LIMIT = 500;
 
@@ -123,7 +126,7 @@ class AttendanceController extends Controller
         $attendances = $notYetIn !== null && ! $isRange && in_array($request->query('status'), [null, '', self::NOT_YET_IN_STATUS], true)
             ? $this->withNotYetInRows($request, $query->orderBy($sort, $direction)->get(), $notYetIn, $fromString, $notYetInLabel)
             : AttendanceResource::collection(
-                $query->orderBy($sort, $direction)->paginate($request->integer('per_page', 10))->withQueryString(),
+                $query->orderBy($sort, $direction)->paginate($this->perPage($request))->withQueryString(),
             );
 
         $statusCountQuery = Attendance::forTenant($tenantId)
@@ -229,6 +232,17 @@ class AttendanceController extends Controller
         }
 
         return $response;
+    }
+
+    /**
+     * The requested page size, held to the offered options so a hand-typed
+     * ?per_page=100000 cannot pull a tenant's whole history in one page.
+     */
+    private function perPage(Request $request): int
+    {
+        $perPage = $request->integer('per_page', self::PER_PAGE_OPTIONS[0]);
+
+        return in_array($perPage, self::PER_PAGE_OPTIONS, true) ? $perPage : self::PER_PAGE_OPTIONS[0];
     }
 
     /**
@@ -485,7 +499,7 @@ class AttendanceController extends Controller
             ->concat($virtual)
             ->values();
 
-        $perPage = max(1, $request->integer('per_page', 10));
+        $perPage = max(1, $this->perPage($request));
         $total = $rows->count();
         $lastPage = max(1, (int) ceil($total / $perPage));
         $page = min($lastPage, max(1, $request->integer('page', 1)));

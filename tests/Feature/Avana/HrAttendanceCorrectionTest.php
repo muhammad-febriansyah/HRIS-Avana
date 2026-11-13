@@ -421,3 +421,19 @@ describe('bulk correction', function (): void {
             ->assertForbidden();
     });
 });
+
+it('pages the rekap by an offered page size only', function (int|string $asked, int $served): void {
+    actingAs($this->admin)
+        ->get(route('avana.absensi', ['date' => HR_FIX_DATE, 'per_page' => $asked]))
+        ->assertInertia(fn (Assert $page) => $page->where('attendances.meta.per_page', $served));
+
+    actingAs($this->admin)
+        ->get(route('avana.absensi', ['date_from' => '2026-11-01', 'date_to' => HR_FIX_DATE, 'per_page' => $asked]))
+        ->assertInertia(fn (Assert $page) => $page->where('attendances.meta.per_page', $served));
+})->with([
+    'ten' => [10, 10],
+    'fifty' => [50, 50],
+    'hundred' => [100, 100],
+    'unoffered' => [100000, 10],
+    'junk' => ['abc', 10],
+]);

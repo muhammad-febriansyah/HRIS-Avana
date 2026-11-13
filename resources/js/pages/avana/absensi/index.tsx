@@ -216,6 +216,14 @@ export default function AvanaAbsensi({
         );
     };
 
+    const changePerPage = (perPage: number) => {
+        router.get(
+            window.location.pathname,
+            { ...filters, per_page: String(perPage), page: 1 },
+            { preserveState: true, preserveScroll: true, replace: true },
+        );
+    };
+
     const openDetail = (row: Attendance) => {
         router.visit(`/avana/absensi/${row.id}`);
     };
@@ -453,6 +461,7 @@ export default function AvanaAbsensi({
                             onRowClick={openDetail}
                             onCorrect={canCorrect ? setCorrecting : undefined}
                             selection={canCorrect ? selection : undefined}
+                            onPerPage={changePerPage}
                         />
                     </div>
                 </div>

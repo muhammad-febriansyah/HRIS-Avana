@@ -13,7 +13,12 @@ interface RekapTableProps {
     onCorrect?: (row: Attendance) => void;
     /** Row selection for bulk correction; the checkbox column is hidden when absent. */
     selection?: RowSelection;
+    /** Change the page size; the "Baris" picker is hidden when absent. */
+    onPerPage?: (perPage: number) => void;
 }
+
+/** Page sizes offered; mirrors AttendanceController::PER_PAGE_OPTIONS. */
+export const PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
 /** Ticked rows, keyed by {@see rowKey}. */
 export interface RowSelection {
@@ -44,6 +49,7 @@ export function RekapTable({
     onRowClick,
     onCorrect,
     selection,
+    onPerPage,
 }: RekapTableProps) {
     const selectableRows = rows.filter((row) => row.employee !== null);
     const pageSelected =
@@ -570,6 +576,42 @@ export function RekapTable({
                         alignItems: 'center',
                     }}
                 >
+                    {onPerPage && (
+                        <label
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 7,
+                                marginRight: 8,
+                                fontSize: 12.5,
+                                color: C.muted,
+                            }}
+                        >
+                            Baris
+                            <select
+                                value={meta.per_page}
+                                onChange={(event) =>
+                                    onPerPage(Number(event.target.value))
+                                }
+                                style={{
+                                    height: 34,
+                                    padding: '0 8px',
+                                    border: `1px solid ${C.border}`,
+                                    borderRadius: 8,
+                                    fontSize: 12.5,
+                                    color: C.text,
+                                    background: '#fff',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                {PER_PAGE_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>
+                                        {option}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    )}
                     <button
                         disabled={meta.current_page <= 1}
                         onClick={() => onGoToPage(meta.current_page - 1)}
