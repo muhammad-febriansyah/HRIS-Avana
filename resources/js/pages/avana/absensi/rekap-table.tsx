@@ -11,7 +11,28 @@ interface RekapTableProps {
     onRowClick: (row: Attendance) => void;
     /** Opens HR's correction form; the column is hidden when absent. */
     onCorrect?: (row: Attendance) => void;
+    /** Row selection for bulk correction; the checkbox column is hidden when absent. */
+    selection?: RowSelection;
 }
+
+/** Ticked rows, keyed by {@see rowKey}. */
+export interface RowSelection {
+    isSelected: (row: Attendance) => boolean;
+    toggle: (row: Attendance) => void;
+    togglePage: (rows: Attendance[], select: boolean) => void;
+}
+
+/** One rekap row's identity across pages: the employee and the day. */
+export function rowKey(row: Attendance): string {
+    return `${row.employee?.id ?? 0}|${row.date_raw ?? ''}`;
+}
+
+const checkboxStyle = {
+    width: 16,
+    height: 16,
+    cursor: 'pointer',
+    accentColor: C.primary,
+} as const;
 
 /** Daily attendance rekap table with a search header and pagination footer. */
 export function RekapTable({
@@ -22,7 +43,14 @@ export function RekapTable({
     onGoToPage,
     onRowClick,
     onCorrect,
+    selection,
 }: RekapTableProps) {
+    const selectableRows = rows.filter((row) => row.employee !== null);
+    const pageSelected =
+        selection !== undefined &&
+        selectableRows.length > 0 &&
+        selectableRows.every((row) => selection.isSelected(row));
+
     return (
         <div
             style={{
@@ -90,6 +118,28 @@ export function RekapTable({
                 >
                     <thead>
                         <tr style={{ background: '#FAFBFD' }}>
+                            {selection && (
+                                <th
+                                    style={{
+                                        padding: '11px 0 11px 18px',
+                                        width: 34,
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        aria-label="Pilih semua baris di halaman ini"
+                                        checked={pageSelected}
+                                        disabled={selectableRows.length === 0}
+                                        onChange={() =>
+                                            selection.togglePage(
+                                                selectableRows,
+                                                !pageSelected,
+                                            )
+                                        }
+                                        style={checkboxStyle}
+                                    />
+                                </th>
+                            )}
                             <th
                                 style={{
                                     padding: '11px 18px',
@@ -210,7 +260,11 @@ export function RekapTable({
                                 }}
                             >
                                 <td
-                                    colSpan={onCorrect ? 9 : 8}
+                                    colSpan={
+                                        8 +
+                                        (onCorrect ? 1 : 0) +
+                                        (selection ? 1 : 0)
+                                    }
                                     style={{
                                         padding: '48px 18px',
                                         textAlign: 'center',
@@ -253,8 +307,36 @@ export function RekapTable({
                                         cursor: hasPoint
                                             ? 'pointer'
                                             : 'default',
+                                        background:
+                                            selection?.isSelected(row) === true
+                                                ? '#F3F6FE'
+                                                : undefined,
                                     }}
                                 >
+                                    {selection && (
+                                        <td
+                                            style={{
+                                                padding: '12px 0 12px 18px',
+                                            }}
+                                            onClick={(event) =>
+                                                event.stopPropagation()
+                                            }
+                                        >
+                                            {row.employee !== null && (
+                                                <input
+                                                    type="checkbox"
+                                                    aria-label={`Pilih ${row.employee.name} ${row.date}`}
+                                                    checked={selection.isSelected(
+                                                        row,
+                                                    )}
+                                                    onChange={() =>
+                                                        selection.toggle(row)
+                                                    }
+                                                    style={checkboxStyle}
+                                                />
+                                            )}
+                                        </td>
+                                    )}
                                     <td
                                         style={{
                                             padding: '12px 18px',

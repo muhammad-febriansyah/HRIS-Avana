@@ -9,15 +9,18 @@ use App\Models\Attendance;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\PayrollPeriod;
+use App\Models\User;
 use App\Services\AbsenceMarker;
 use App\Services\HrAttendanceCorrection;
 use App\Support\PrivateFile;
 use App\Support\TenantTime;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -53,6 +56,9 @@ class AttendanceController extends Controller
      * status — the row does not exist until the day closes as Alpa.
      */
     private const NOT_YET_IN_STATUS = 'not_in';
+
+    /** Most rows one bulk correction may touch. */
+    private const BULK_CORRECTION_LIMIT = 500;
 
     /**
      * Deterministic avatar background palette.
@@ -91,26 +97,14 @@ class AttendanceController extends Controller
 
         $direction = $request->query('direction') === 'asc' ? 'asc' : 'desc';
 
-        $query = Attendance::query()
-            ->forTenant($tenantId)
-            ->whereDate('date', '>=', $fromString)
-            ->whereDate('date', '<=', $toString)
+        $filters = $this->rekapFilters($request->query());
+        $query = $this->rekapQuery($request->user(), (int) $tenantId, $fromString, $toString, $filters)
             ->with([
                 'employee:id,full_name,employee_number,branch_id',
                 'employee.branch:id,name',
                 'shift:id,name,start_time,end_time',
                 'workLocation:id,name,latitude,longitude,radius_meter',
-            ])
-            ->when($request->query('search'), function ($query, $search): void {
-                $query->whereHas('employee', function ($q) use ($search): void {
-                    $q->where('full_name', 'like', "%{$search}%")
-                        ->orWhere('employee_number', 'like', "%{$search}%");
-                });
-            })
-            ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
-            ->when($request->query('branch_id'), fn ($q, $branchId) => $q->where('branch_id', $branchId));
-
-        $this->applyBranchScope($query, $request->user());
+            ]);
 
         // The day whose no-shows are listed: a single-day view of today or a
         // past day, or — for a range — today when the range covers it.
@@ -118,7 +112,7 @@ class AttendanceController extends Controller
         $focusDate = ! $isRange
             ? ($fromString <= $today ? $fromString : null)
             : ($fromString <= $today && $today <= $toString ? $today : null);
-        $notYetIn = $focusDate !== null ? $this->notYetIn($request, (int) $tenantId, $focusDate) : null;
+        $notYetIn = $focusDate !== null ? $this->notYetIn($request->user(), (int) $tenantId, $focusDate, $filters['branch_id']) : null;
         $notYetInLabel = $focusDate === $today ? 'Belum Absen' : 'Belum Tercatat';
 
         // A single-day rekap lists the no-shows as rows of their own, so the
@@ -234,6 +228,209 @@ class AttendanceController extends Controller
     }
 
     /**
+     * The rekap's own filters, read from a query string or a posted body.
+     *
+     * @param  array<string, mixed>  $source
+     * @return array{search: string|null, status: string|null, branch_id: int|null}
+     */
+    private function rekapFilters(array $source): array
+    {
+        $search = is_string($source['search'] ?? null) && trim($source['search']) !== '' ? trim($source['search']) : null;
+        $status = is_string($source['status'] ?? null) && $source['status'] !== '' ? $source['status'] : null;
+        $branchId = is_numeric($source['branch_id'] ?? null) ? (int) $source['branch_id'] : null;
+
+        return ['search' => $search, 'status' => $status, 'branch_id' => $branchId];
+    }
+
+    /**
+     * Stored attendance rows the rekap shows for a range and its filters,
+     * fenced to the viewer's branches.
+     *
+     * @param  array{search: string|null, status: string|null, branch_id: int|null}  $filters
+     * @return Builder<Attendance>
+     */
+    private function rekapQuery(User $user, int $tenantId, string $from, string $to, array $filters): Builder
+    {
+        $query = Attendance::query()
+            ->forTenant($tenantId)
+            ->whereDate('date', '>=', $from)
+            ->whereDate('date', '<=', $to)
+            ->when($filters['search'], function ($query, $search): void {
+                $query->whereHas('employee', function ($q) use ($search): void {
+                    $q->where('full_name', 'like', "%{$search}%")
+                        ->orWhere('employee_number', 'like', "%{$search}%");
+                });
+            })
+            ->when($filters['status'], fn ($q, $status) => $q->where('status', $status))
+            ->when($filters['branch_id'], fn ($q, $branchId) => $q->where('branch_id', $branchId));
+
+        $this->applyBranchScope($query, $user);
+
+        return $query;
+    }
+
+    /**
+     * HR corrects many days at once: the rows ticked on the rekap, or every
+     * row the current filters show ("pilih semua"). One status, one set of
+     * clock times and one reason apply to all of them, each written and
+     * logged exactly as a single correction would be. All or nothing.
+     */
+    public function correctMany(Request $request): RedirectResponse
+    {
+        $this->authorize('approveCorrection', Attendance::class);
+
+        $user = $request->user();
+        $tenantId = (int) $user->tenant_id;
+        $today = TenantTime::today($tenantId);
+
+        $data = $request->validate([
+            'status' => ['required', Rule::in(HrAttendanceCorrection::STATUSES)],
+            'clock_in' => ['nullable', 'required_if:status,'.HrAttendanceCorrection::STATUS_PRESENT, 'date_format:H:i'],
+            'clock_out' => ['nullable', 'date_format:H:i'],
+            'reason' => ['required', 'string', 'max:1000'],
+            'select_all' => ['nullable', 'boolean'],
+            'items' => ['required_unless:select_all,true', 'array', 'max:'.self::BULK_CORRECTION_LIMIT],
+            'items.*.employee_id' => ['required', 'integer'],
+            'items.*.date' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.$today],
+            'filters' => ['nullable', 'array'],
+            'filters.date_from' => ['required_if:select_all,true', 'nullable', 'date_format:Y-m-d'],
+            'filters.date_to' => ['required_if:select_all,true', 'nullable', 'date_format:Y-m-d'],
+            // Every filter the rekap applies must be listed here: validate()
+            // drops unlisted keys, and a lost search would widen "pilih semua"
+            // from one employee to the whole day.
+            'filters.search' => ['nullable', 'string', 'max:255'],
+            'filters.status' => ['nullable', 'string', 'max:50'],
+            'filters.branch_id' => ['nullable', 'integer'],
+        ], [
+            'clock_in.required_if' => 'Jam masuk wajib diisi untuk status Hadir.',
+            'clock_in.date_format' => 'Format jam masuk harus HH:MM.',
+            'clock_out.date_format' => 'Format jam pulang harus HH:MM.',
+            'reason.required' => 'Alasan koreksi wajib diisi.',
+            'items.required_unless' => 'Pilih minimal satu baris.',
+            'items.max' => 'Maksimal '.self::BULK_CORRECTION_LIMIT.' baris sekali koreksi.',
+            'items.*.date.before_or_equal' => 'Tanggal tidak boleh melewati hari ini.',
+        ]);
+
+        $targets = ($data['select_all'] ?? false)
+            ? $this->filteredTargets($user, $tenantId, $today, $data['filters'] ?? [])
+            : collect($data['items'])->map(fn (array $item): array => [
+                'employee_id' => (int) $item['employee_id'],
+                'date' => $item['date'],
+            ]);
+
+        $targets = $targets->unique(fn (array $target): string => $target['employee_id'].'|'.$target['date'])->values();
+
+        if ($targets->isEmpty()) {
+            return back()->withErrors(['items' => 'Tidak ada baris yang bisa dikoreksi.']);
+        }
+
+        if ($targets->count() > self::BULK_CORRECTION_LIMIT) {
+            return back()->withErrors(['items' => 'Ada '.$targets->count().' baris; maksimal '.self::BULK_CORRECTION_LIMIT.' sekali koreksi. Persempit filternya.']);
+        }
+
+        // The branch fence again, for every employee named: an id outside the
+        // viewer's branches fails the whole batch rather than slipping in.
+        $employeeQuery = Employee::forTenant($tenantId)->whereKey($targets->pluck('employee_id')->unique()->all());
+        $this->applyBranchScope($employeeQuery, $user);
+        $employees = $employeeQuery->get()->keyBy('id');
+
+        abort_if($targets->pluck('employee_id')->unique()->diff($employees->keys())->isNotEmpty(), 404);
+
+        DB::transaction(function () use ($targets, $employees, $data, $user): void {
+            foreach ($targets as $target) {
+                HrAttendanceCorrection::apply(
+                    $employees[$target['employee_id']],
+                    $target['date'],
+                    $data['status'],
+                    $data['clock_in'] ?? null,
+                    $data['clock_out'] ?? null,
+                    $data['reason'],
+                    $user,
+                );
+            }
+        });
+
+        $response = back()->with('success', $targets->count().' baris absensi dikoreksi.');
+
+        $locked = $this->lockedPeriodCodes($tenantId, $targets->pluck('date')->unique()->all());
+
+        if ($locked !== []) {
+            $response->with('warning', 'Periode payroll '.implode(', ', $locked).' sudah dikunci, jadi gaji di periode itu tidak berubah otomatis. Selisihnya dicatat lewat Payroll → Koreksi Gaji.');
+        }
+
+        return $response;
+    }
+
+    /**
+     * Every (employee, date) the rekap shows for the posted filters — stored
+     * rows plus, on a single day, the "belum absen / belum tercatat" rows.
+     *
+     * @param  array<string, mixed>  $source
+     * @return Collection<int, array{employee_id: int, date: string}>
+     */
+    private function filteredTargets(User $user, int $tenantId, string $today, array $source): Collection
+    {
+        $from = (string) ($source['date_from'] ?? $today);
+        $to = (string) ($source['date_to'] ?? $from);
+        if ($to < $from) {
+            [$from, $to] = [$to, $from];
+        }
+        $to = min($to, $today);
+
+        if ($from > $to) {
+            return collect();
+        }
+
+        $filters = $this->rekapFilters($source);
+
+        $targets = $this->rekapQuery($user, $tenantId, $from, $to, $filters)
+            ->get(['employee_id', 'date'])
+            ->map(fn (Attendance $attendance): array => [
+                'employee_id' => (int) $attendance->employee_id,
+                'date' => $attendance->date->format('Y-m-d'),
+            ]);
+
+        if ($from === $to && in_array($filters['status'], [null, self::NOT_YET_IN_STATUS], true)) {
+            $search = mb_strtolower((string) $filters['search']);
+
+            $missing = collect($this->notYetIn($user, $tenantId, $from, $filters['branch_id']))
+                ->filter(fn (array $employee): bool => $search === ''
+                    || str_contains(mb_strtolower($employee['name']), $search)
+                    || str_contains(mb_strtolower((string) $employee['employee_number']), $search))
+                ->map(fn (array $employee): array => ['employee_id' => $employee['id'], 'date' => $from]);
+
+            $targets = $targets->concat($missing);
+        }
+
+        return $targets->values();
+    }
+
+    /**
+     * Codes of the locked payroll periods covering any of the dates.
+     *
+     * @param  array<int, string>  $dates
+     * @return list<string>
+     */
+    private function lockedPeriodCodes(int $tenantId, array $dates): array
+    {
+        if ($dates === []) {
+            return [];
+        }
+
+        return PayrollPeriod::forTenant($tenantId)
+            ->where('status', 'locked')
+            ->whereDate('start_date', '<=', max($dates))
+            ->whereDate('end_date', '>=', min($dates))
+            ->get(['code', 'start_date', 'end_date'])
+            ->filter(fn (PayrollPeriod $period): bool => collect($dates)->contains(
+                fn (string $date): bool => $period->start_date->toDateString() <= $date && $period->end_date->toDateString() >= $date,
+            ))
+            ->pluck('code')
+            ->values()
+            ->all();
+    }
+
+    /**
      * The day's attendance rows followed by one row per no-show ("Belum
      * Absen" today, "Belum Tercatat" on a past day not yet closed as Alpa),
      * paginated in memory in the same shape the resource paginator sends.
@@ -314,13 +511,11 @@ class AttendanceController extends Controller
      *
      * @return array<int, array{id: int, name: string, employee_number: string|null, branch: string|null}>
      */
-    private function notYetIn(Request $request, int $tenantId, string $date): array
+    private function notYetIn(User $user, int $tenantId, string $date, ?int $branchId): array
     {
-        $branchId = $request->query('branch_id');
-
-        $missing = AbsenceMarker::missing($tenantId, Carbon::parse($date), function ($query) use ($request, $branchId): void {
-            $query->when(is_numeric($branchId), fn ($q) => $q->where('branch_id', (int) $branchId));
-            $this->applyBranchScope($query, $request->user());
+        $missing = AbsenceMarker::missing($tenantId, Carbon::parse($date), function ($query) use ($user, $branchId): void {
+            $query->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId));
+            $this->applyBranchScope($query, $user);
         });
 
         $branchNames = Branch::query()->whereKey($missing->pluck('branch_id')->filter()->unique())->pluck('name', 'id');

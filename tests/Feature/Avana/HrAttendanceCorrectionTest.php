@@ -299,3 +299,125 @@ describe('payroll follows the correction', function (): void {
             ->assertSessionHas('warning', fn (string $message): bool => str_contains($message, 'sudah dikunci'));
     });
 });
+
+describe('bulk correction', function (): void {
+    beforeEach(function (): void {
+        $this->second = Employee::forTenant($this->tenant->id)
+            ->whereNotNull('user_id')
+            ->where('status', 'active')
+            ->whereKeyNot($this->worker->id)
+            ->orderBy('id')
+            ->firstOrFail();
+        $this->second->update(['join_date' => '2020-01-01', 'resign_date' => null, 'attendance_exempt' => false]);
+
+        Attendance::whereIn('employee_id', [$this->worker->id, $this->second->id])
+            ->whereDate('date', '>=', '2026-11-10')
+            ->delete();
+    });
+
+    function bulkFix(object $ctx, array $payload): TestResponse
+    {
+        return actingAs($ctx->admin)->post(route('avana.absensi.koreksi-massal'), array_merge([
+            'reason' => 'Rekap ulang HR',
+        ], $payload));
+    }
+
+    it('applies one status to every ticked row, across employees and days', function (): void {
+        bulkFix($this, [
+            'status' => 'absent',
+            'items' => [
+                ['employee_id' => $this->worker->id, 'date' => '2026-11-10'],
+                ['employee_id' => $this->worker->id, 'date' => HR_FIX_DATE],
+                ['employee_id' => $this->second->id, 'date' => HR_FIX_DATE],
+            ],
+        ])->assertSessionHas('success', '3 baris absensi dikoreksi.');
+
+        $statuses = Attendance::whereIn('employee_id', [$this->worker->id, $this->second->id])
+            ->whereDate('date', '>=', '2026-11-10')
+            ->pluck('status');
+
+        expect($statuses)->toHaveCount(3)
+            ->and($statuses->unique()->values()->all())->toBe(['absent'])
+            ->and(AttendanceCorrection::where('correction_type', 'hr_absent')->where('reason', 'Rekap ulang HR')->count())->toBe(3);
+    });
+
+    it('sets Hadir with the same clock times for every ticked row', function (): void {
+        bulkFix($this, [
+            'status' => 'hadir',
+            'clock_in' => '07:55',
+            'items' => [
+                ['employee_id' => $this->worker->id, 'date' => HR_FIX_DATE],
+                ['employee_id' => $this->second->id, 'date' => HR_FIX_DATE],
+            ],
+        ])->assertSessionHas('success');
+
+        expect(workerDay($this)->status)->toBe('present')
+            ->and(Attendance::where('employee_id', $this->second->id)->whereDate('date', HR_FIX_DATE)->value('clock_in_at'))->not->toBeNull();
+    });
+
+    it('selects every row the filters show, unclosed no-shows included', function (): void {
+        Attendance::create([
+            'tenant_id' => $this->tenant->id, 'employee_id' => $this->second->id,
+            'date' => HR_FIX_DATE, 'status' => 'late', 'late_minutes' => 20,
+            'clock_in_at' => HR_FIX_DATE.' 08:20:00',
+        ]);
+
+        bulkFix($this, [
+            'status' => 'leave',
+            'select_all' => true,
+            'filters' => ['date_from' => HR_FIX_DATE, 'date_to' => HR_FIX_DATE],
+        ])->assertSessionHas('success');
+
+        // The stored row and the no-show row alike.
+        expect(Attendance::where('employee_id', $this->second->id)->whereDate('date', HR_FIX_DATE)->value('status'))->toBe('leave')
+            ->and(workerDay($this)?->status)->toBe('leave');
+    });
+
+    it('narrows select-all to the filtered employee', function (): void {
+        bulkFix($this, [
+            'status' => 'absent',
+            'select_all' => true,
+            'filters' => ['date_from' => HR_FIX_DATE, 'date_to' => HR_FIX_DATE, 'search' => $this->worker->full_name],
+        ])->assertSessionHas('success');
+
+        expect(workerDay($this)?->status)->toBe('absent')
+            ->and(Attendance::where('employee_id', $this->second->id)->whereDate('date', HR_FIX_DATE)->exists())->toBeFalse();
+    });
+
+    it('rejects an empty selection, a future day, or a missing reason', function (array $payload, string $field): void {
+        bulkFix($this, $payload)->assertSessionHasErrors($field);
+
+        expect(workerDay($this))->toBeNull();
+    })->with([
+        'nothing ticked' => [['status' => 'absent', 'items' => []], 'items'],
+        'tomorrow' => [['status' => 'absent', 'items' => [['employee_id' => 1, 'date' => '2026-11-14']]], 'items.0.date'],
+        'no reason' => [['status' => 'absent', 'reason' => '', 'items' => [['employee_id' => 1, 'date' => HR_FIX_DATE]]], 'reason'],
+    ]);
+
+    it('writes nothing when one row is outside the tenant', function (): void {
+        $foreign = Employee::where('tenant_id', '!=', $this->tenant->id)->value('id') ?? 999999;
+
+        bulkFix($this, [
+            'status' => 'absent',
+            'items' => [
+                ['employee_id' => $this->worker->id, 'date' => HR_FIX_DATE],
+                ['employee_id' => $foreign, 'date' => HR_FIX_DATE],
+            ],
+        ])->assertNotFound();
+
+        expect(workerDay($this))->toBeNull();
+    });
+
+    it('forbids staff without the correction permission', function (): void {
+        $employeeRole = Role::where('tenant_id', $this->tenant->id)->where('code', 'employee')->firstOrFail();
+        $staff = User::factory()->create(['tenant_id' => $this->tenant->id]);
+        $staff->roles()->sync([$employeeRole->id]);
+
+        actingAs($staff)
+            ->post(route('avana.absensi.koreksi-massal'), [
+                'status' => 'absent', 'reason' => 'x',
+                'items' => [['employee_id' => $this->worker->id, 'date' => HR_FIX_DATE]],
+            ])
+            ->assertForbidden();
+    });
+});

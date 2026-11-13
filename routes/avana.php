@@ -201,6 +201,7 @@ Route::middleware(['auth', 'verified', EnsureAvanaAccess::class, LogPageActivity
     Route::delete('absensi/kebijakan/tidak-wajib/{employee}', [AttendancePolicyController::class, 'destroyExemption'])->name('absensi.kebijakan.tidak-wajib.destroy');
     // HR correcting a day directly — status, clock times, reason.
     Route::post('absensi/koreksi', [AttendanceController::class, 'correct'])->name('absensi.koreksi');
+    Route::post('absensi/koreksi-massal', [AttendanceController::class, 'correctMany'])->name('absensi.koreksi-massal');
     Route::get('absensi/{attendance}', [AttendanceController::class, 'show'])->name('absensi.show');
     Route::delete('absensi/{attendance}', [AttendanceController::class, 'destroy'])->name('absensi.destroy');
     Route::get('cuti', [LeaveController::class, 'index'])->name('cuti');

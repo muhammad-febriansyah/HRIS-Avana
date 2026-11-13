@@ -1,12 +1,15 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { DatePicker } from '@/components/avana/date-picker';
-import { AIcon, btnOut, C } from '@/lib/avana';
+import { AIcon, btnOut, btnP, C } from '@/lib/avana';
+import { BulkCorrectionModal } from './bulk-correction-modal';
+import type { BulkTarget } from './bulk-correction-modal';
 import { KpiStrip } from './components';
 import { CorrectionModal } from './correction-modal';
-import { RekapTable } from './rekap-table';
+import { RekapTable, rowKey } from './rekap-table';
+import type { RowSelection } from './rekap-table';
 import type { AbsensiProps, Attendance, FlashProps } from './types';
 
 const STATUS_OPTIONS = [
@@ -17,6 +20,11 @@ const STATUS_OPTIONS = [
     { value: 'incomplete', label: 'Belum Lengkap' },
     { value: 'not_in', label: 'Belum Absen / Belum Tercatat' },
 ];
+
+/** Mirrors AttendanceController::BULK_CORRECTION_LIMIT. */
+const BULK_LIMIT = 500;
+
+type SelectedRow = { employee_id: number; date: string };
 
 const filterControl: CSSProperties = {
     height: 40,
@@ -43,7 +51,102 @@ export default function AvanaAbsensi({
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [correcting, setCorrecting] = useState<Attendance | null>(null);
+    const [selected, setSelected] = useState<Map<string, SelectedRow>>(
+        () => new Map(),
+    );
+    // Every row the filters show, across pages — resolved by the server.
+    const [allMatching, setAllMatching] = useState(false);
+    const [bulkTarget, setBulkTarget] = useState<BulkTarget | null>(null);
     const isFirstSearch = useRef(true);
+
+    const clearSelection = () => {
+        setSelected(new Map());
+        setAllMatching(false);
+    };
+
+    // A ticked row belongs to the filters it was ticked under; a new filter
+    // is a new list. Paging keeps the ticks so HR can pick across pages.
+    // Reset while rendering (React's "adjust state on prop change"), not in
+    // an effect, so the stale ticks never paint.
+    const filterKey = [
+        filters.date_from,
+        filters.date_to,
+        filters.status,
+        filters.branch_id,
+        filters.search,
+    ].join('|');
+    const [selectionFilterKey, setSelectionFilterKey] = useState(filterKey);
+
+    if (selectionFilterKey !== filterKey) {
+        setSelectionFilterKey(filterKey);
+        clearSelection();
+    }
+
+    const selection = useMemo<RowSelection>(
+        () => ({
+            isSelected: (row) => allMatching || selected.has(rowKey(row)),
+            toggle: (row) => {
+                if (row.employee === null || row.date_raw === null) {
+                    return;
+                }
+
+                setAllMatching(false);
+                setSelected((current) => {
+                    const next = new Map(current);
+                    const key = rowKey(row);
+
+                    if (next.has(key)) {
+                        next.delete(key);
+                    } else {
+                        next.set(key, {
+                            employee_id: row.employee!.id,
+                            date: row.date_raw!,
+                        });
+                    }
+
+                    return next;
+                });
+            },
+            togglePage: (rows, select) => {
+                setAllMatching(false);
+                setSelected((current) => {
+                    const next = new Map(current);
+
+                    rows.forEach((row) => {
+                        if (row.employee === null || row.date_raw === null) {
+                            return;
+                        }
+
+                        if (select) {
+                            next.set(rowKey(row), {
+                                employee_id: row.employee.id,
+                                date: row.date_raw,
+                            });
+                        } else {
+                            next.delete(rowKey(row));
+                        }
+                    });
+
+                    return next;
+                });
+            },
+        }),
+        [selected, allMatching],
+    );
+
+    const selectedCount = allMatching ? meta.total : selected.size;
+    const pageRows = attendances.data.filter((row) => row.employee !== null);
+    const pageFullySelected =
+        pageRows.length > 0 &&
+        pageRows.every((row) => selected.has(rowKey(row)));
+
+    const openBulk = () => {
+        setBulkTarget(
+            allMatching
+                ? { kind: 'filter', total: meta.total, filters }
+                : { kind: 'items', items: Array.from(selected.values()) },
+        );
+    };
 
     useEffect(() => {
         if (flash?.success) {
@@ -246,6 +349,101 @@ export default function AvanaAbsensi({
                     >
                         <KpiStrip kpis={kpis} />
 
+                        {canCorrect && selectedCount > 0 && (
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    flexWrap: 'wrap',
+                                    gap: 10,
+                                    padding: '10px 14px',
+                                    background: '#EEF2FF',
+                                    border: `1px solid ${C.primary}33`,
+                                    borderRadius: 10,
+                                    fontSize: 13.5,
+                                    color: C.text,
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        flexWrap: 'wrap',
+                                        gap: 8,
+                                    }}
+                                >
+                                    <strong>
+                                        {selectedCount.toLocaleString('id-ID')}{' '}
+                                        baris dipilih
+                                        {allMatching
+                                            ? ' (semua sesuai filter)'
+                                            : ''}
+                                    </strong>
+                                    {!allMatching &&
+                                        pageFullySelected &&
+                                        meta.total > selected.size && (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setAllMatching(true)
+                                                }
+                                                style={{
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    padding: 0,
+                                                    color: C.primary,
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                    fontSize: 13.5,
+                                                }}
+                                            >
+                                                Pilih semua{' '}
+                                                {meta.total.toLocaleString(
+                                                    'id-ID',
+                                                )}{' '}
+                                                baris sesuai filter
+                                            </button>
+                                        )}
+                                    {selectedCount > BULK_LIMIT && (
+                                        <span style={{ color: C.red }}>
+                                            Maksimal {BULK_LIMIT} baris sekali
+                                            koreksi — persempit filternya.
+                                        </span>
+                                    )}
+                                </div>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    <button
+                                        type="button"
+                                        onClick={clearSelection}
+                                        style={{ ...btnOut, height: 36 }}
+                                    >
+                                        Batal pilih
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={openBulk}
+                                        disabled={selectedCount > BULK_LIMIT}
+                                        style={{
+                                            ...btnP,
+                                            height: 36,
+                                            opacity:
+                                                selectedCount > BULK_LIMIT
+                                                    ? 0.5
+                                                    : 1,
+                                        }}
+                                    >
+                                        <AIcon
+                                            name="pencil"
+                                            size={15}
+                                            color="#fff"
+                                        />
+                                        Koreksi Terpilih
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <RekapTable
                             rows={attendances.data}
                             meta={meta}
@@ -254,10 +452,19 @@ export default function AvanaAbsensi({
                             onGoToPage={goToPage}
                             onRowClick={openDetail}
                             onCorrect={canCorrect ? setCorrecting : undefined}
+                            selection={canCorrect ? selection : undefined}
                         />
                     </div>
                 </div>
             </div>
+
+            {bulkTarget !== null && (
+                <BulkCorrectionModal
+                    target={bulkTarget}
+                    onClose={() => setBulkTarget(null)}
+                    onDone={clearSelection}
+                />
+            )}
 
             {correcting !== null && (
                 <CorrectionModal
