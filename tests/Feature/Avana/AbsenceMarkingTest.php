@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Avana\LaporanController;
 use App\Http\Controllers\Avana\PayrollController;
 use App\Models\Attendance;
 use App\Models\AttendancePenalty;
@@ -274,6 +275,55 @@ it('lists a past day\'s unclosed no-shows as Belum Tercatat until they are marke
         ->assertInertia(fn (Assert $page) => $page
             ->where('attendances.data', fn ($rows): bool => $aliceRow($rows) === null
                 && collect($rows)->contains(fn ($row): bool => ($row['employee']['id'] ?? null) === $this->alice->id && $row['status'] === 'absent')));
+});
+
+describe('laporan absensi', function (): void {
+    beforeEach(function (): void {
+        Route::middleware('web')->prefix('spec-absence')->group(function (): void {
+            Route::get('laporan/export/{type}', [LaporanController::class, 'export']);
+        });
+
+        $this->travelTo(Carbon::parse('2026-11-13 10:00', TenantTime::zone($this->tenant->id)));
+        clearAttendance($this->alice, '2026-11-10');
+        clearAttendance($this->alice, '2026-11-12');
+    });
+
+    /** @return list<list<string>> */
+    function exportRows(object $ctx, string $query): array
+    {
+        $csv = actingAs($ctx->admin)->get('spec-absence/laporan/export/absensi?'.$query)->assertOk()->streamedContent();
+
+        return array_map('str_getcsv', array_values(array_filter(explode("\n", trim($csv)))));
+    }
+
+    it('honours the Absensi page\'s date_from/date_to range', function (): void {
+        $rows = exportRows($this, 'date_from=2026-11-12&date_to=2026-11-12');
+
+        expect($rows[0][0])->toBe('Tanggal')
+            ->and(collect(array_slice($rows, 1))->pluck(0)->unique()->values()->all())->toBe(['2026-11-12']);
+    });
+
+    it('lists Alpa rows and unclosed no-shows the way the page does', function (): void {
+        AbsenceMarker::markTenant($this->tenant->id, Carbon::parse('2026-11-10'));
+
+        $rows = collect(exportRows($this, 'date_from=2026-11-10&date_to=2026-11-12'))->slice(1);
+        $alice = $rows->filter(fn (array $row): bool => $row[1] === $this->alice->full_name)->keyBy(0);
+
+        // Closed by the marker: a real Alpa row.
+        expect($alice['2026-11-10'][8])->toBe('Alpa')
+            // Not closed yet: still listed, flagged as not recorded.
+            ->and($alice['2026-11-12'][8])->toBe('Belum Tercatat')
+            // Listed once per day, never twice.
+            ->and($alice->count())->toBe($rows->filter(fn (array $row): bool => $row[1] === $this->alice->full_name)->count());
+    });
+
+    it('leaves exempt employees out of the no-show rows', function (): void {
+        $this->alice->update(['attendance_exempt' => true]);
+
+        $rows = collect(exportRows($this, 'date_from=2026-11-12&date_to=2026-11-12'))->slice(1);
+
+        expect($rows->contains(fn (array $row): bool => $row[1] === $this->alice->full_name))->toBeFalse();
+    });
 });
 
 describe('payroll', function (): void {

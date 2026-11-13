@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Avana;
 use App\Exports\ReportExport;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\LeaveRequest;
@@ -14,6 +15,7 @@ use App\Models\PayrollRunItem;
 use App\Models\TaxProfile;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\AbsenceMarker;
 use App\Services\ActivityLogger;
 use App\Support\TenantTime;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -45,6 +47,12 @@ class LaporanController extends Controller
      * @var array<int, string>
      */
     private const TYPES = ['karyawan', 'absensi', 'cuti', 'payroll', 'bpjs', 'pph21', 'turnover'];
+
+    /**
+     * Longest attendance range (in days) the export fills with no-show rows;
+     * past that it lists the stored rows only, as before.
+     */
+    private const NO_SHOW_RANGE_DAYS = 62;
 
     /**
      * Render the reports landing screen with headline HR stats.
@@ -142,13 +150,21 @@ class LaporanController extends Controller
 
         $this->applyPeriodFilter($query, $type, $request);
 
+        // An attendance rekap over a bounded range also lists who was due and
+        // left no row at all — today's "belum absen", or a past day the Alpa
+        // marker has not closed — exactly as the Absensi page shows them.
+        $range = $this->dateRange($request);
+        $withNoShows = $type === 'absensi'
+            && $range !== null
+            && Carbon::parse($range[0])->diffInDays(Carbon::parse($range[1])) < self::NO_SHOW_RANGE_DAYS;
+
         $format = in_array($request->query('format'), ['xlsx', 'pdf'], true)
             ? $request->query('format')
             : 'csv';
 
         $base = 'laporan-'.$type.'-'.Carbon::today()->format('Y-m-d');
 
-        if ($format === 'csv') {
+        if ($format === 'csv' && ! $withNoShows) {
             return response()->streamDownload(function () use ($header, $query, $mapper): void {
                 $out = fopen('php://output', 'w');
                 fputcsv($out, $header);
@@ -164,6 +180,23 @@ class LaporanController extends Controller
         }
 
         $rows = $query->get()->map(fn ($row): array => $mapper($row))->all();
+
+        if ($withNoShows) {
+            $rows = $this->withNoShowRows($tenantId, $rows, $range[0], $range[1]);
+        }
+
+        if ($format === 'csv') {
+            return response()->streamDownload(function () use ($header, $rows): void {
+                $out = fopen('php://output', 'w');
+                fputcsv($out, $header);
+
+                foreach ($rows as $row) {
+                    fputcsv($out, $row);
+                }
+
+                fclose($out);
+            }, $base.'.csv', ['Content-Type' => 'text/csv']);
+        }
 
         if ($format === 'xlsx') {
             return Excel::download(new ReportExport($rows, $header, $this->reportTitle($type)), $base.'.xlsx');
@@ -184,10 +217,13 @@ class LaporanController extends Controller
     private function applyPeriodFilter(Builder $query, string $type, Request $request): void
     {
         $filter = self::PERIOD_FILTERS[$type] ?? null;
+        $range = $this->dateRange($request);
 
-        if ($filter === 'range' && $request->filled('start') && $request->filled('end')) {
+        if ($filter === 'range' && $range !== null) {
             $column = $type === 'cuti' ? 'start_date' : 'date';
-            $query->whereBetween($column, [$request->query('start'), $request->query('end')]);
+            // whereDate on both ends: a cast date column can carry a midnight
+            // time, which a plain BETWEEN on the last day would leave out.
+            $query->whereDate($column, '>=', $range[0])->whereDate($column, '<=', $range[1]);
 
             return;
         }
@@ -195,6 +231,34 @@ class LaporanController extends Controller
         if ($filter === 'period' && $request->filled('period_id')) {
             $query->where('payroll_period_id', (int) $request->query('period_id'));
         }
+    }
+
+    /**
+     * The requested date range as [start, end] (Y-m-d), or null when none.
+     *
+     * The Laporan page sends ?start&end; the Absensi page's "Export Rekap"
+     * sends the same range as ?date_from&date_to, which this export used to
+     * ignore — handing HR every attendance row ever recorded instead.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private function dateRange(Request $request): ?array
+    {
+        $start = $request->query('start') ?? $request->query('date_from');
+        $end = $request->query('end') ?? $request->query('date_to');
+
+        if (! is_string($start) || ! is_string($end) || $start === '' || $end === '') {
+            return null;
+        }
+
+        try {
+            $from = Carbon::createFromFormat('Y-m-d', $start)->toDateString();
+            $to = Carbon::createFromFormat('Y-m-d', $end)->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $from <= $to ? [$from, $to] : [$to, $from];
     }
 
     /**
@@ -221,8 +285,10 @@ class LaporanController extends Controller
     {
         $filter = self::PERIOD_FILTERS[$type] ?? null;
 
-        if ($filter === 'range' && $request->filled('start') && $request->filled('end')) {
-            return 'Periode '.$request->query('start').' s.d. '.$request->query('end');
+        $range = $this->dateRange($request);
+
+        if ($filter === 'range' && $range !== null) {
+            return 'Periode '.$range[0].' s.d. '.$range[1];
         }
 
         if ($filter === 'period' && $request->filled('period_id')) {
@@ -272,17 +338,19 @@ class LaporanController extends Controller
      */
     private function absensiReport(int $tenantId): array
     {
-        $header = ['Tanggal', 'Nama', 'Shift', 'Masuk', 'Keluar', 'Telat (menit)', 'Status'];
+        $header = ['Tanggal', 'Nama', 'No. Karyawan', 'Cabang', 'Shift', 'Masuk', 'Keluar', 'Telat (menit)', 'Status'];
 
         $query = Attendance::query()
             ->forTenant($tenantId)
-            ->with(['employee:id,full_name', 'shift:id,name'])
+            ->with(['employee:id,full_name,employee_number,branch_id', 'employee.branch:id,name', 'shift:id,name'])
             ->orderByDesc('date')
             ->orderBy('id');
 
         $mapper = fn (Attendance $attendance): array => [
             $attendance->date?->format('Y-m-d'),
             $attendance->employee?->full_name,
+            $attendance->employee?->employee_number,
+            $attendance->employee?->branch?->name,
             $attendance->shift?->name,
             $attendance->clock_in_at?->format('H:i'),
             $attendance->clock_out_at?->format('H:i'),
@@ -291,6 +359,44 @@ class LaporanController extends Controller
         ];
 
         return [$header, $query, $mapper];
+    }
+
+    /**
+     * Add one row per employee who was due and has no attendance row, for
+     * every day of the range up to today, then order the whole report by
+     * date (newest first) and name — the same no-shows the Absensi page
+     * lists, so the export and the screen agree.
+     *
+     * @param  array<int, array<int, string|int|null>>  $rows
+     * @return array<int, array<int, string|int|null>>
+     */
+    private function withNoShowRows(int $tenantId, array $rows, string $start, string $end): array
+    {
+        $today = TenantTime::today($tenantId);
+        $last = $end < $today ? $end : $today;
+        $branchNames = Branch::forTenant($tenantId)->pluck('name', 'id');
+
+        for ($date = Carbon::parse($start); $date->toDateString() <= $last; $date = $date->addDay()) {
+            $label = $date->toDateString() === $today ? 'Belum Absen' : 'Belum Tercatat';
+
+            foreach (AbsenceMarker::missing($tenantId, $date) as $employee) {
+                $rows[] = [
+                    $date->toDateString(),
+                    $employee->full_name,
+                    $employee->employee_number,
+                    $employee->branch_id !== null ? ($branchNames[$employee->branch_id] ?? null) : null,
+                    null,
+                    null,
+                    null,
+                    0,
+                    $label,
+                ];
+            }
+        }
+
+        usort($rows, fn (array $a, array $b): int => [(string) $b[0], (string) $a[1]] <=> [(string) $a[0], (string) $b[1]]);
+
+        return $rows;
     }
 
     /**
