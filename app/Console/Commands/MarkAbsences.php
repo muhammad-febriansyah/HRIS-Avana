@@ -14,22 +14,14 @@ use Illuminate\Support\Carbon;
     {--from= : First date to mark (Y-m-d) — a backfill; needs --to}
     {--to= : Last date to mark (Y-m-d)}
     {--tenant= : Limit to one tenant id}')]
-#[Description('Mark employees who were due at work but never clocked in as Alpa (absent).')]
+#[Description('Mark employees whose shift has ended without a clock-in as Alpa (absent).')]
 class MarkAbsences extends Command
 {
     /**
-     * The hour, on the tenant's own clock, yesterday is closed and marked.
-     *
-     * Past midnight rather than at it, so a night shift that started the
-     * evening before has had its chance to clock in.
-     */
-    private const MARK_HOUR = 1;
-
-    /**
-     * Run without options (how the schedule calls it), each tenant has its
-     * previous day marked on the pass where its own wall clock reads the mark
-     * hour. With --from/--to every date in the range is marked for every
-     * tenant now — a backfill, which skips anyone who already has a row.
+     * Run without options (how the schedule calls it, every quarter hour),
+     * each tenant has every no-show whose shift is over on its own clock
+     * marked Alpa. With --from/--to every date in the range is marked for
+     * every tenant now — a backfill, which skips anyone who already has a row.
      */
     public function handle(): int
     {
@@ -47,13 +39,7 @@ class MarkAbsences extends Command
         $marked = 0;
 
         foreach ($tenants as $tenantId) {
-            $localNow = TenantTime::now($tenantId);
-
-            if ($localNow->hour !== self::MARK_HOUR) {
-                continue;
-            }
-
-            $marked += AbsenceMarker::markTenant((int) $tenantId, $localNow->copy()->subDay()->startOfDay());
+            $marked += AbsenceMarker::markEnded((int) $tenantId, TenantTime::now($tenantId));
         }
 
         $this->info("Marked {$marked} absence(s).");

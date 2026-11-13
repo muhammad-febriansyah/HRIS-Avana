@@ -156,8 +156,12 @@ class AttendanceController extends Controller
                 'terlambat' => (int) ($statusCounts['late'] ?? 0),
                 'izin' => (int) ($statusCounts['leave'] ?? 0),
                 'alpa' => (int) ($statusCounts['absent'] ?? 0),
-                'belum_absen' => $notYetIn === null ? null : count($notYetIn),
-                'belum_absen_label' => $focusDate === $today ? 'Belum Absen (hari ini)' : 'Belum Tercatat',
+                // Today's no-shows turn into stored Alpa rows as each shift
+                // ends, so they are counted in "alpa" above; the ones whose
+                // shift is still running are not missing yet and get no card.
+                // A past day not yet closed keeps its "Belum Tercatat" count.
+                'belum_absen' => $notYetIn === null || $focusDate === $today ? null : count($notYetIn),
+                'belum_absen_label' => 'Belum Tercatat',
             ],
             'branches' => Branch::forTenant($tenantId)
                 ->orderBy('name')

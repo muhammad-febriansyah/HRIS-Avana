@@ -153,16 +153,61 @@ it('marks nobody for a tenant that does not run attendance', function (): void {
         ->and(aliceRowOn($this, ABSENCE_WEDNESDAY))->toBeNull();
 });
 
-it('closes yesterday on the tenant\'s own mark hour only', function (): void {
+it('marks a rostered no-show Alpa only once the shift has ended', function (): void {
     $zone = TenantTime::zone($this->tenant->id);
-    $thursday = '2026-11-12';
+    $shift = Shift::create([
+        'tenant_id' => $this->tenant->id, 'code' => 'END-SPEC', 'name' => 'Bengkel',
+        'start_time' => '08:00:00', 'end_time' => '18:00:00',
+        'late_tolerance_minutes' => 10, 'work_days' => [1, 2, 3, 4, 5], 'status' => 'active',
+    ]);
+    ShiftSchedule::create([
+        'tenant_id' => $this->tenant->id, 'employee_id' => $this->alice->id,
+        'date' => ABSENCE_WEDNESDAY, 'shift_id' => $shift->id,
+    ]);
 
-    $this->travelTo(Carbon::parse($thursday.' 05:10', $zone));
+    // Mid-shift: late, perhaps, but not missing yet.
+    $this->travelTo(Carbon::parse(ABSENCE_WEDNESDAY.' 14:55', $zone));
     artisan('avana:mark-absences', ['--tenant' => $this->tenant->id])->assertSuccessful();
     expect(aliceRowOn($this, ABSENCE_WEDNESDAY))->toBeNull();
 
-    $this->travelTo(Carbon::parse($thursday.' 01:10', $zone));
+    // The shift is over: Alpa, the same day, with the shift on the row.
+    $this->travelTo(Carbon::parse(ABSENCE_WEDNESDAY.' 18:00', $zone));
     artisan('avana:mark-absences', ['--tenant' => $this->tenant->id])->assertSuccessful();
+    expect(aliceRowOn($this, ABSENCE_WEDNESDAY))
+        ->status->toBe('absent')
+        ->shift_id->toBe($shift->id);
+});
+
+it('waits for a night shift to end on the next calendar day', function (): void {
+    $zone = TenantTime::zone($this->tenant->id);
+    $shift = Shift::create([
+        'tenant_id' => $this->tenant->id, 'code' => 'NIGHT-SPEC', 'name' => 'Siang Sales',
+        'start_time' => '15:00:00', 'end_time' => '01:00:00',
+        'late_tolerance_minutes' => 0, 'work_days' => [1, 2, 3, 4, 5], 'status' => 'active',
+    ]);
+    ShiftSchedule::create([
+        'tenant_id' => $this->tenant->id, 'employee_id' => $this->alice->id,
+        'date' => ABSENCE_WEDNESDAY, 'shift_id' => $shift->id,
+    ]);
+
+    $this->travelTo(Carbon::parse('2026-11-12 00:30', $zone));
+    AbsenceMarker::markEnded($this->tenant->id, TenantTime::now($this->tenant->id));
+    expect(aliceRowOn($this, ABSENCE_WEDNESDAY))->toBeNull();
+
+    $this->travelTo(Carbon::parse('2026-11-12 01:05', $zone));
+    AbsenceMarker::markEnded($this->tenant->id, TenantTime::now($this->tenant->id));
+    expect(aliceRowOn($this, ABSENCE_WEDNESDAY)?->status)->toBe('absent');
+});
+
+it('ends an unrostered office day at midnight', function (): void {
+    $zone = TenantTime::zone($this->tenant->id);
+
+    $this->travelTo(Carbon::parse(ABSENCE_WEDNESDAY.' 23:50', $zone));
+    AbsenceMarker::markEnded($this->tenant->id, TenantTime::now($this->tenant->id));
+    expect(aliceRowOn($this, ABSENCE_WEDNESDAY))->toBeNull();
+
+    $this->travelTo(Carbon::parse('2026-11-12 00:05', $zone));
+    AbsenceMarker::markEnded($this->tenant->id, TenantTime::now($this->tenant->id));
     expect(aliceRowOn($this, ABSENCE_WEDNESDAY)?->status)->toBe('absent');
 });
 
@@ -200,14 +245,24 @@ it('lets a late clock-in overturn the Alpa and drops its automatic penalty', fun
     expect($penalty()->exists())->toBeFalse();
 });
 
-it('counts who has not clocked in yet today on the Absensi page', function (): void {
+it('counts unclosed no-shows only for a past day', function (): void {
+    clearAttendance($this->alice, '2026-11-10');
     $this->travelTo(Carbon::parse(ABSENCE_WEDNESDAY.' 10:00', TenantTime::zone($this->tenant->id)));
 
     actingAs($this->admin)
         ->get('/avana/absensi?date='.ABSENCE_WEDNESDAY)
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page
-            ->where('kpis.belum_absen', fn ($count): bool => $count >= 1));
+            // Today has no "belum absen" card: no-shows become Alpa rows as
+            // their shift ends, and the rest are still within their shift.
+            ->where('kpis.belum_absen', null));
+
+    actingAs($this->admin)
+        ->get('/avana/absensi?date=2026-11-10')
+        ->assertSuccessful()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('kpis.belum_absen', fn ($count): bool => $count >= 1)
+            ->where('kpis.belum_absen_label', 'Belum Tercatat'));
 
     actingAs($this->admin)
         ->get('/avana/absensi?date=2026-11-20')

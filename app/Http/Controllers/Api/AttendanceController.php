@@ -498,11 +498,20 @@ class AttendanceController extends Controller
         // always belong to its own calendar date.
         $workDate = Roster::workDateFor((int) $employee->tenant_id, (int) $employee->id, $clockedAt);
 
-        $attendance = Attendance::firstOrNew([
-            'tenant_id' => $employee->tenant_id,
-            'employee_id' => $employee->id,
-            'date' => $workDate,
-        ]);
+        // Matched with whereDate, not by equality on the raw column: the day
+        // may already hold a row written through the model's date cast — an
+        // Alpa the marker wrote when the shift ended, or a leave marker — and
+        // a late arrival must land on that row, not beside it.
+        $attendance = Attendance::query()
+            ->where('tenant_id', $employee->tenant_id)
+            ->where('employee_id', $employee->id)
+            ->whereDate('date', $workDate)
+            ->first()
+            ?? new Attendance([
+                'tenant_id' => $employee->tenant_id,
+                'employee_id' => $employee->id,
+                'date' => $workDate,
+            ]);
 
         if ($attendance->clock_in_at !== null) {
             return response()->json(['message' => 'Anda sudah clock-in hari ini.'], 422);

@@ -29,11 +29,12 @@ Schedule::command('avana:scan-attrition-alerts')->dailyAt('07:30');
 // them at half past ten.
 Schedule::command('avana:remind-attendance')->hourlyAt(30);
 
-// Close yesterday's attendance: anyone the roster (or the office week) expected
-// who never clocked in gets an Alpa row, so the rekap, the reports and payroll
-// see the missed day. Hourly because the hour it acts on is each tenant's own.
+// Anyone the roster (or the office week) expected whose shift has ended
+// without a clock-in gets an Alpa row, so the rekap, the reports and payroll
+// see the missed day the same day. Every quarter hour so a shift that ends at
+// 17:00 is Alpa by 17:15, on each tenant's own clock.
 Schedule::command('avana:mark-absences')
-    ->hourlyAt(10)
+    ->everyFifteenMinutes()
     ->withoutOverlapping()
     ->onOneServer();
 

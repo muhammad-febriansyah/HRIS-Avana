@@ -14,6 +14,7 @@ use App\Models\ShiftSchedule;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkLocation;
+use App\Support\TenantTime;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
@@ -34,6 +35,14 @@ beforeEach(function (): void {
         'email' => 'bagus.p@nusantara.co.id',
         'password' => 'password',
     ])->json('access_token');
+
+    // The demo seed already has Bagus clocked in today. The clock-in tests
+    // start from a day with no punch yet, as the clock-out test already
+    // does — the endpoint rightly refuses a second clock-in on the same day.
+    $bagus = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+    Attendance::where('employee_id', $bagus->id)
+        ->whereDate('date', TenantTime::today($bagus->tenant_id))
+        ->delete();
 
     // jwt-auth caches the resolved user on the guard singleton across requests
     // in a test; flush it before each call so the bearer token is the sole auth.

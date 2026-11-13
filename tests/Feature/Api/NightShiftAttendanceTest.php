@@ -1,9 +1,13 @@
 <?php
 
 use App\Models\Attendance;
+use App\Models\Feature;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
+use App\Models\TenantFeature;
 use App\Models\User;
+use App\Services\AbsenceMarker;
+use App\Support\TenantTime;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Support\Carbon;
 
@@ -233,4 +237,37 @@ it('keeps offering clock-out after midnight when the day was never rostered', fu
         ->assertJsonPath('data.next_action', 'out');
 
     ($this->punch)('2026-08-11 00:30:00', 'out')->assertOk();
+});
+
+it('lands a clock-in after an Alpa on the Alpa row and judges it late', function (): void {
+    $pagi = Shift::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'code' => 'PAGI-T', 'name' => 'Bengkel',
+        'start_time' => '08:00:00', 'end_time' => '09:00:00',
+        'late_tolerance_minutes' => 10, 'status' => 'active',
+    ]);
+    ShiftSchedule::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'employee_id' => $this->employee->id,
+        'shift_id' => $pagi->id,
+        'date' => '2026-08-12',
+    ]);
+    TenantFeature::updateOrCreate(
+        ['tenant_id' => $this->employee->tenant_id, 'feature_id' => Feature::firstOrCreate(['code' => 'attendance'], ['name' => 'Attendance', 'is_active' => true])->id],
+        ['is_enabled' => true],
+    );
+
+    // The shift ended with no clock-in: the marker writes Alpa.
+    Carbon::setTestNow(Carbon::parse('2026-08-12 09:15:00'));
+    AbsenceMarker::markEnded($this->employee->tenant_id, TenantTime::now($this->employee->tenant_id));
+    expect(Attendance::where('employee_id', $this->employee->id)->whereDate('date', '2026-08-12')->value('status'))->toBe('absent');
+
+    // They turn up after all.
+    ($this->punch)('2026-08-12 09:20:00', 'in')->assertOk();
+
+    $rows = Attendance::where('employee_id', $this->employee->id)->whereDate('date', '2026-08-12')->get();
+
+    expect($rows)->toHaveCount(1)
+        ->and($rows->first()->status)->toBe('late')
+        ->and($rows->first()->clock_in_at)->not->toBeNull();
 });

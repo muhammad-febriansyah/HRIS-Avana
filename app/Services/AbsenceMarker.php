@@ -4,11 +4,14 @@ namespace App\Services;
 
 use App\Models\Attendance;
 use App\Models\Employee;
+use App\Models\Shift;
+use App\Models\ShiftSchedule;
 use App\Models\Tenant;
 use App\Support\Roster;
 use App\Support\Workday;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -28,7 +31,8 @@ final class AbsenceMarker
 {
     /**
      * Mark every due employee of the tenant who has no attendance row on the
-     * date. Returns how many Alpa rows were written.
+     * date, whatever the hour — a backfill of days already over. Returns how
+     * many Alpa rows were written.
      *
      * Only for a tenant that runs the Attendance module: a company that does
      * not use clock-in at all would otherwise see its whole workforce marked
@@ -36,28 +40,104 @@ final class AbsenceMarker
      */
     public static function markTenant(int $tenantId, CarbonInterface $date): int
     {
-        if (Tenant::find($tenantId)?->hasFeature('attendance') !== true) {
+        if (! self::runsAttendance($tenantId)) {
             return 0;
         }
 
         $marked = 0;
 
         foreach (self::missing($tenantId, $date) as $employee) {
-            Attendance::create([
-                'tenant_id' => $tenantId,
-                'employee_id' => $employee->id,
-                'branch_id' => $employee->branch_id,
-                'shift_id' => Roster::shiftFor($tenantId, (int) $employee->id, $date)?->id,
-                'date' => $date->toDateString(),
-                'status' => 'absent',
-                'late_minutes' => 0,
-                'work_minutes' => 0,
-            ]);
-
+            self::write($tenantId, $employee, $date, Roster::shiftFor($tenantId, (int) $employee->id, $date)?->id);
             $marked++;
         }
 
         return $marked;
+    }
+
+    /**
+     * Mark Alpa for everyone whose shift has ended without a clock-in, on the
+     * work dates still open at the tenant's local time $now: today, and
+     * yesterday for a night shift that ends after midnight.
+     *
+     * A no-show becomes Alpa the moment their shift is over, not the next
+     * morning, so the rekap, the reports and payroll see it the same day.
+     * Before the shift ends nobody is Alpa yet — a 15:00 shift is not missing
+     * at 10:00. Someone with no roster row works the office week; with no
+     * shift to end, their day ends at midnight.
+     */
+    public static function markEnded(int $tenantId, CarbonInterface $now): int
+    {
+        if (! self::runsAttendance($tenantId)) {
+            return 0;
+        }
+
+        $today = $now->copy()->startOfDay();
+        $marked = 0;
+
+        foreach ([$today->copy()->subDay(), $today] as $date) {
+            $missing = self::missing($tenantId, $date);
+
+            if ($missing->isEmpty()) {
+                continue;
+            }
+
+            $shifts = ShiftSchedule::forTenant($tenantId)
+                ->whereIn('employee_id', $missing->pluck('id'))
+                ->whereDate('date', $date->toDateString())
+                ->with('shift')
+                ->get()
+                ->mapWithKeys(fn (ShiftSchedule $row): array => [(int) $row->employee_id => $row->shift]);
+
+            foreach ($missing as $employee) {
+                $shift = $shifts->get((int) $employee->id);
+
+                if ($now->lt(self::shiftEnd($shift, $date))) {
+                    continue;
+                }
+
+                self::write($tenantId, $employee, $date, $shift?->id);
+                $marked++;
+            }
+        }
+
+        return $marked;
+    }
+
+    /**
+     * When the work day on $date is over: the shift's end time (the next
+     * calendar day for a shift that crosses midnight), or midnight when there
+     * is no shift to end.
+     */
+    public static function shiftEnd(?Shift $shift, CarbonInterface $date): Carbon
+    {
+        $day = Carbon::parse($date->toDateString(), $date->getTimezone());
+
+        if ($shift === null || $shift->end_time === null) {
+            return $day->addDay();
+        }
+
+        $end = $day->copy()->setTimeFromTimeString((string) $shift->end_time);
+
+        return Roster::crossesMidnight($shift) ? $end->addDay() : $end;
+    }
+
+    private static function runsAttendance(int $tenantId): bool
+    {
+        return Tenant::find($tenantId)?->hasFeature('attendance') === true;
+    }
+
+    private static function write(int $tenantId, Employee $employee, CarbonInterface $date, ?int $shiftId): void
+    {
+        Attendance::create([
+            'tenant_id' => $tenantId,
+            'employee_id' => $employee->id,
+            'branch_id' => $employee->branch_id,
+            'shift_id' => $shiftId,
+            'date' => $date->toDateString(),
+            'status' => 'absent',
+            'late_minutes' => 0,
+            'work_minutes' => 0,
+        ]);
     }
 
     /**
