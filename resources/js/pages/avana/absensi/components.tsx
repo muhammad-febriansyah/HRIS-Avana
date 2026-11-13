@@ -5,15 +5,25 @@ import type { AbsensiProps } from './types';
 
 interface KpiStripProps {
     kpis: AbsensiProps['kpis'];
+    /** Narrows the table to the no-show rows; the card is plain when absent. */
+    onShowNotYetIn?: () => void;
+}
+
+interface KpiCard {
+    label: string;
+    value: number;
+    color: string;
+    hint?: string;
+    onClick?: () => void;
 }
 
 /**
- * Daily status KPI cards. Mirrors the prototype layout, fed by the daily
- * status counts (hadir / terlambat / izin / alpa), plus "Belum Absen" while
- * the range covers today.
+ * Daily status KPI cards: hadir / terlambat / izin / alpa, plus — whenever
+ * the day has people due who left no row — "Belum Absen" today or "Belum
+ * Tercatat" on a past day, so the cards add up to everyone expected.
  */
-export function KpiStrip({ kpis }: KpiStripProps) {
-    const kpiCards: { label: string; value: number; color: string }[] = [
+export function KpiStrip({ kpis, onShowNotYetIn }: KpiStripProps) {
+    const kpiCards: KpiCard[] = [
         { label: 'Hadir', value: kpis.hadir, color: C.green },
         { label: 'Terlambat', value: kpis.terlambat, color: C.amber },
         { label: 'Cuti / Izin', value: kpis.izin, color: C.primary },
@@ -25,6 +35,8 @@ export function KpiStrip({ kpis }: KpiStripProps) {
             label: kpis.belum_absen_label,
             value: kpis.belum_absen,
             color: C.violet,
+            hint: kpis.belum_absen_hint,
+            onClick: kpis.belum_absen > 0 ? onShowNotYetIn : undefined,
         });
     }
 
@@ -37,36 +49,69 @@ export function KpiStrip({ kpis }: KpiStripProps) {
                 gap: 12,
             }}
         >
-            {kpiCards.map((kpi) => (
-                <div
-                    key={kpi.label}
-                    style={{
-                        background: '#fff',
-                        border: `1px solid ${C.border}`,
-                        borderRadius: 12,
-                        padding: '15px 16px',
-                    }}
-                >
-                    <div
+            {kpiCards.map((kpi) => {
+                const body = (
+                    <>
+                        <div
+                            style={{
+                                fontSize: 12.5,
+                                color: C.muted,
+                            }}
+                        >
+                            {kpi.label}
+                        </div>
+                        <div
+                            style={{
+                                fontSize: 22,
+                                fontWeight: 700,
+                                color: kpi.color,
+                                marginTop: 3,
+                            }}
+                        >
+                            {kpi.value.toLocaleString('id-ID')}
+                        </div>
+                        {kpi.hint && (
+                            <div
+                                style={{
+                                    fontSize: 11.5,
+                                    color: C.faint,
+                                    marginTop: 2,
+                                }}
+                            >
+                                {kpi.hint}
+                                {kpi.onClick ? ' · lihat' : ''}
+                            </div>
+                        )}
+                    </>
+                );
+
+                const cardStyle = {
+                    background: '#fff',
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 12,
+                    padding: '15px 16px',
+                    textAlign: 'left' as const,
+                };
+
+                return kpi.onClick ? (
+                    <button
+                        key={kpi.label}
+                        type="button"
+                        onClick={kpi.onClick}
                         style={{
-                            fontSize: 12.5,
-                            color: C.muted,
+                            ...cardStyle,
+                            cursor: 'pointer',
+                            font: 'inherit',
                         }}
                     >
-                        {kpi.label}
+                        {body}
+                    </button>
+                ) : (
+                    <div key={kpi.label} style={cardStyle}>
+                        {body}
                     </div>
-                    <div
-                        style={{
-                            fontSize: 22,
-                            fontWeight: 700,
-                            color: kpi.color,
-                            marginTop: 3,
-                        }}
-                    >
-                        {kpi.value.toLocaleString('id-ID')}
-                    </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 }

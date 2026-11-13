@@ -86,8 +86,10 @@ export interface AbsensiProps {
         alpa: number;
         /** Due today with no clock-in yet; null when the range excludes today. */
         belum_absen: number | null;
-        /** Label of the past-day "Belum Tercatat" card. */
+        /** "Belum Absen (hari ini)" today, "Belum Tercatat" on a past day. */
         belum_absen_label: string;
+        /** One-line note under the card explaining when these become Alpa. */
+        belum_absen_hint: string;
     };
     branches: BranchOption[];
     /** Whether the viewer may correct attendance directly (HR). */

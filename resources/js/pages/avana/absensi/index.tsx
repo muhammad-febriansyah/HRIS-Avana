@@ -355,7 +355,12 @@ export default function AvanaAbsensi({
                             gap: 16,
                         }}
                     >
-                        <KpiStrip kpis={kpis} />
+                        <KpiStrip
+                            kpis={kpis}
+                            onShowNotYetIn={() =>
+                                changeFilter('status', 'not_in')
+                            }
+                        />
 
                         {canCorrect && selectedCount > 0 && (
                             <div

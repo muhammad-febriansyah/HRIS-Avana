@@ -245,7 +245,7 @@ it('lets a late clock-in overturn the Alpa and drops its automatic penalty', fun
     expect($penalty()->exists())->toBeFalse();
 });
 
-it('counts unclosed no-shows only for a past day', function (): void {
+it('counts today\'s and a past day\'s no-shows on their own card', function (): void {
     clearAttendance($this->alice, '2026-11-10');
     $this->travelTo(Carbon::parse(ABSENCE_WEDNESDAY.' 10:00', TenantTime::zone($this->tenant->id)));
 
@@ -253,9 +253,11 @@ it('counts unclosed no-shows only for a past day', function (): void {
         ->get('/avana/absensi?date='.ABSENCE_WEDNESDAY)
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page
-            // Today has no "belum absen" card: no-shows become Alpa rows as
-            // their shift ends, and the rest are still within their shift.
-            ->where('kpis.belum_absen', null));
+            // Today keeps a "belum absen" card so the cards add up to everyone
+            // due; each one turns into a stored Alpa as their shift ends.
+            ->where('kpis.belum_absen', fn ($count): bool => $count >= 1)
+            ->where('kpis.belum_absen_label', 'Belum Absen (hari ini)')
+            ->where('kpis.belum_absen_hint', 'Jadi Alpa setelah jam pulang'));
 
     actingAs($this->admin)
         ->get('/avana/absensi?date=2026-11-10')
