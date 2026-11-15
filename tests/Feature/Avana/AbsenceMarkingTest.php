@@ -211,6 +211,43 @@ it('ends an unrostered office day at midnight', function (): void {
     expect(aliceRowOn($this, ABSENCE_WEDNESDAY)?->status)->toBe('absent');
 });
 
+it('closes the days a stopped scheduler skipped once it runs again', function (): void {
+    $zone = TenantTime::zone($this->tenant->id);
+    $thursday = '2026-11-12';
+    $friday = '2026-11-13';
+    clearAttendance($this->alice, $thursday);
+    clearAttendance($this->alice, $friday);
+    clearAttendance($this->alice, '2026-11-10');
+
+    // No run since Tuesday; the first one back is Friday evening.
+    $this->travelTo(Carbon::parse($friday.' 18:00', $zone));
+    AbsenceMarker::markEnded($this->tenant->id, TenantTime::now($this->tenant->id));
+
+    expect(aliceRowOn($this, ABSENCE_WEDNESDAY)?->status)->toBe('absent')
+        ->and(aliceRowOn($this, $thursday)?->status)->toBe('absent')
+        // Friday's office day only ends at midnight.
+        ->and(aliceRowOn($this, $friday))->toBeNull()
+        // Beyond the catch-up window is a deliberate backfill, not a sweep.
+        ->and(aliceRowOn($this, '2026-11-10'))->toBeNull();
+});
+
+it('does not catch up a day inside a locked payroll period', function (): void {
+    $zone = TenantTime::zone($this->tenant->id);
+    $thursday = '2026-11-12';
+    clearAttendance($this->alice, $thursday);
+
+    PayrollPeriod::create([
+        'tenant_id' => $this->tenant->id, 'code' => 'LOCK-TEST', 'name' => 'Locked',
+        'start_date' => '2026-11-01', 'end_date' => ABSENCE_WEDNESDAY, 'status' => 'locked',
+    ]);
+
+    $this->travelTo(Carbon::parse('2026-11-13 08:00', $zone));
+    AbsenceMarker::markEnded($this->tenant->id, TenantTime::now($this->tenant->id));
+
+    expect(aliceRowOn($this, ABSENCE_WEDNESDAY))->toBeNull()
+        ->and(aliceRowOn($this, $thursday)?->status)->toBe('absent');
+});
+
 it('backfills a range but never marks today', function (): void {
     $zone = TenantTime::zone($this->tenant->id);
     $thursday = '2026-11-12';

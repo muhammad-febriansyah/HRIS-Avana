@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Attendance;
 use App\Models\Employee;
+use App\Models\PayrollPeriod;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
 use App\Models\Tenant;
@@ -29,6 +30,15 @@ use Illuminate\Support\Collection;
  */
 final class AbsenceMarker
 {
+    /**
+     * How many days before today each scheduled run still closes. One would
+     * do while the scheduler never misses a beat, but a stopped cron, a
+     * deploy or a reboot then left every day it skipped as "Belum Tercatat"
+     * for good. Kept short on purpose: anything older is a backfill
+     * (`--from/--to`), a choice to dock pay the client has to make.
+     */
+    public const CATCH_UP_DAYS = 2;
+
     /**
      * Mark every due employee of the tenant who has no attendance row on the
      * date, whatever the hour — a backfill of days already over. Returns how
@@ -56,8 +66,10 @@ final class AbsenceMarker
 
     /**
      * Mark Alpa for everyone whose shift has ended without a clock-in, on the
-     * work dates still open at the tenant's local time $now: today, and
-     * yesterday for a night shift that ends after midnight.
+     * work dates still open at the tenant's local time $now: today, and the
+     * CATCH_UP_DAYS before it — yesterday for a night shift that ends after
+     * midnight, and any day a missed scheduler run left open. Days inside a
+     * locked payroll period are left alone.
      *
      * A no-show becomes Alpa the moment their shift is over, not the next
      * morning, so the rekap, the reports and payroll see it the same day.
@@ -73,8 +85,21 @@ final class AbsenceMarker
 
         $today = $now->copy()->startOfDay();
         $marked = 0;
+        $lockedPeriods = PayrollPeriod::forTenant($tenantId)
+            ->where('status', 'locked')
+            ->whereDate('end_date', '>=', $today->copy()->subDays(self::CATCH_UP_DAYS)->toDateString())
+            ->get(['start_date', 'end_date']);
 
-        foreach ([$today->copy()->subDay(), $today] as $date) {
+        for ($daysBack = self::CATCH_UP_DAYS; $daysBack >= 0; $daysBack--) {
+            $date = $today->copy()->subDays($daysBack);
+
+            // A locked period's payslips are history; an Alpa written into it
+            // would show on the rekap yet never reach the pay it should dock.
+            if ($lockedPeriods->contains(fn (PayrollPeriod $period): bool => $period->start_date->toDateString() <= $date->toDateString()
+                && $period->end_date->toDateString() >= $date->toDateString())) {
+                continue;
+            }
+
             $missing = self::missing($tenantId, $date);
 
             if ($missing->isEmpty()) {
