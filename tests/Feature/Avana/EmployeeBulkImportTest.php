@@ -6,6 +6,7 @@ use App\Models\Role;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 
 use function Pest\Laravel\actingAs;
 
@@ -81,6 +82,59 @@ it('imports the reviewed rows via bulk store', function (): void {
 
     expect(Employee::count())->toBe($before + 2);
     expect(Employee::where('full_name', 'Import A')->exists())->toBeTrue();
+});
+
+it('imports a 31-row batch that all share one password and role', function (): void {
+    $this->admin->tenant->forceFill(['max_employees' => null])->save();
+    $before = Employee::count();
+
+    $rows = collect(range(1, 31))->map(fn (int $n): array => [
+        'full_name' => "Sales {$n}",
+        'email' => "sales.{$n}@contoh.co",
+        'employment_status' => 'permanent',
+        'status' => 'active',
+        'password' => 'Password123',
+    ])->all();
+
+    actingAs($this->admin)->post('/avana/employees/bulk', [
+        'role_id' => Role::where('tenant_id', $this->admin->tenant_id)->value('id'),
+        'employees' => $rows,
+    ])->assertSessionHasNoErrors()->assertRedirect(route('avana.employees.index'));
+
+    // The shared password is hashed once for the batch, yet every account
+    // must still sign in with it.
+    $accounts = User::whereIn('email', ['sales.1@contoh.co', 'sales.31@contoh.co'])->get();
+
+    expect(Employee::count())->toBe($before + 31)
+        ->and($accounts)->toHaveCount(2)
+        ->and($accounts->every(fn (User $user): bool => Hash::check('Password123', $user->password)))->toBeTrue();
+});
+
+it('keeps distinct passwords distinct when hashing a batch', function (): void {
+    actingAs($this->admin)->post('/avana/employees/bulk', [
+        'role_id' => Role::where('tenant_id', $this->admin->tenant_id)->value('id'),
+        'employees' => [
+            ['full_name' => 'Satu', 'email' => 'satu@contoh.co', 'employment_status' => 'permanent', 'status' => 'active', 'password' => 'Password123'],
+            ['full_name' => 'Dua', 'email' => 'dua@contoh.co', 'employment_status' => 'permanent', 'status' => 'active', 'password' => 'Rahasia4567'],
+            ['full_name' => 'Tiga', 'email' => null, 'employment_status' => 'permanent', 'status' => 'active', 'password' => null],
+        ],
+    ])->assertSessionHasNoErrors();
+
+    expect(Hash::check('Rahasia4567', User::where('email', 'dua@contoh.co')->value('password')))->toBeTrue()
+        ->and(Hash::check('Password123', User::where('email', 'dua@contoh.co')->value('password')))->toBeFalse()
+        ->and(Employee::where('full_name', 'Tiga')->value('user_id'))->toBeNull();
+});
+
+it('rejects a whole batch when one login email is already taken', function (): void {
+    actingAs($this->admin)->post('/avana/employees/bulk', [
+        'role_id' => Role::where('tenant_id', $this->admin->tenant_id)->value('id'),
+        'employees' => [
+            ['full_name' => 'Baru', 'email' => 'baru@contoh.co', 'employment_status' => 'permanent', 'status' => 'active', 'password' => 'Password123'],
+            ['full_name' => 'Bentrok', 'email' => $this->admin->email, 'employment_status' => 'permanent', 'status' => 'active', 'password' => 'Password123'],
+        ],
+    ])->assertSessionHasErrors('employees.1.email');
+
+    expect(Employee::where('full_name', 'Baru')->exists())->toBeFalse();
 });
 
 it('forbids a non-privileged user from the bulk template', function (): void {

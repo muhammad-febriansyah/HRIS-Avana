@@ -38,6 +38,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -258,7 +259,17 @@ class EmployeeController extends Controller
             'employees',
         );
 
-        DB::transaction(function () use ($validated, $tenantId, $roleId): void {
+        // bcrypt is deliberately slow (~0.2s per hash at cost 12) and an import
+        // usually gives every row the same starter password, so hashing per row
+        // made a 31-row save take many seconds. Hash each distinct password once;
+        // the `hashed` cast on User keeps an already-hashed value as is.
+        $passwordHashes = collect($validated['employees'])
+            ->pluck('password')
+            ->filter(fn (?string $password): bool => filled($password))
+            ->unique()
+            ->mapWithKeys(fn (string $password): array => [$password => Hash::make($password)]);
+
+        DB::transaction(function () use ($validated, $tenantId, $roleId, $passwordHashes): void {
             foreach ($validated['employees'] as $row) {
                 $employee = Employee::create([
                     'tenant_id' => $tenantId,
@@ -273,7 +284,9 @@ class EmployeeController extends Controller
                     'position_id' => $row['position_id'] ?? null,
                 ]);
 
-                $this->syncEmployeeLogin($employee, $row['password'] ?? null, $tenantId, $roleId);
+                $password = $row['password'] ?? null;
+
+                $this->syncEmployeeLogin($employee, filled($password) ? $passwordHashes[$password] : null, $tenantId, $roleId);
             }
         });
 

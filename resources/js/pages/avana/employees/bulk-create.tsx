@@ -103,6 +103,9 @@ export default function EmployeesBulkCreate({
     const createsLogins = rows.some((row) => row.password.trim() !== '');
 
     const fileInput = useRef<HTMLInputElement>(null);
+    const errorBanner = useRef<HTMLDivElement>(null);
+    // Original row index of each employee in the last submitted payload.
+    const [submittedIndexes, setSubmittedIndexes] = useState<number[]>([]);
     const [uploading, setUploading] = useState(false);
     const [summary, setSummary] = useState<{
         total: number;
@@ -428,28 +431,84 @@ export default function EmployeesBulkCreate({
     };
 
     const submit = () => {
-        const filled = rows.filter((row) => !isBlank(row));
-        const source = filled.length > 0 ? filled : rows;
-        const employees = source.map((row) => ({
-            full_name: row.full_name,
-            email: row.email || null,
-            branch_id: row.branch_id || null,
-            department_id: row.department_id || null,
-            position_id: row.position_id || null,
-            employment_status: row.employment_status,
-            status: row.status,
-            password: row.password || null,
-        }));
+        const filledIndexes = rows
+            .map((row, index) => (isBlank(row) ? -1 : index))
+            .filter((index) => index >= 0);
+        const sentIndexes =
+            filledIndexes.length > 0
+                ? filledIndexes
+                : rows.map((_, index) => index);
+        setSubmittedIndexes(sentIndexes);
+        const employees = sentIndexes
+            .map((index) => rows[index])
+            .map((row) => ({
+                full_name: row.full_name,
+                email: row.email || null,
+                branch_id: row.branch_id || null,
+                department_id: row.department_id || null,
+                position_id: row.position_id || null,
+                employment_status: row.employment_status,
+                status: row.status,
+                password: row.password || null,
+            }));
         form.transform(() => ({ employees, role_id: data.role_id || null }));
-        form.post('/avana/employees/bulk', { preserveScroll: true });
+        form.post('/avana/employees/bulk', {
+            preserveScroll: true,
+            onError: () => {
+                toast.error(
+                    'Data belum tersimpan. Periksa pesan kesalahan di atas tombol Simpan.',
+                );
+                requestAnimationFrame(() =>
+                    errorBanner.current?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center',
+                    }),
+                );
+            },
+        });
     };
+
+    // Server errors are keyed by the position in the submitted (blank-rows
+    // dropped) list, so map them back onto the row the user actually sees.
+    const serverRowErrors = useMemo(() => {
+        const byRow = new Map<number, Record<string, string>>();
+
+        Object.entries(errors as Record<string, string>).forEach(
+            ([key, message]) => {
+                const match = /^employees\.(\d+)\.(\w+)$/.exec(key);
+
+                if (!match) {
+                    return;
+                }
+
+                const sentIndex = Number(match[1]);
+                const rowIndex = submittedIndexes[sentIndex] ?? sentIndex;
+                byRow.set(rowIndex, {
+                    ...(byRow.get(rowIndex) ?? {}),
+                    [match[2]]: message,
+                });
+            },
+        );
+
+        return byRow;
+    }, [errors, submittedIndexes]);
+
+    // Errors that are not tied to one cell (subscription quota, an empty
+    // list) — these had nowhere to show, so a failed save looked like nothing.
+    const generalErrors = Object.entries(errors as Record<string, string>)
+        .filter(([key]) => !key.startsWith('employees.'))
+        .map(([, message]) => message);
+
+    const rowsWithServerErrors = [...serverRowErrors.keys()].sort(
+        (a, b) => a - b,
+    );
 
     // Combine client-side preview errors, live email checks, and server
     // validation errors.
     const cellError = (index: number, key: string): string | undefined => {
         const explicit =
             rows[index]?.errors?.[errorKeyOf(key as keyof BulkRow)] ??
-            (errors as Record<string, string>)[`employees.${index}.${key}`];
+            serverRowErrors.get(index)?.[key];
 
         if (explicit) {
             return explicit;
@@ -676,6 +735,9 @@ export default function EmployeesBulkCreate({
                                 {rows.map((row, index) => {
                                     const rowErrors = [
                                         ...Object.values(row.errors ?? {}),
+                                        ...Object.values(
+                                            serverRowErrors.get(index) ?? {},
+                                        ),
                                         emailIssues.get(index),
                                     ].filter((message): message is string =>
                                         Boolean(message),
@@ -906,6 +968,48 @@ export default function EmployeesBulkCreate({
                         </button>
                     </div>
                 </div>
+
+                {(generalErrors.length > 0 ||
+                    rowsWithServerErrors.length > 0) && (
+                    <div
+                        ref={errorBanner}
+                        role="alert"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 10,
+                            padding: '12px 16px',
+                            marginTop: 18,
+                            borderRadius: 12,
+                            background: '#FEF2F2',
+                            border: '1px solid rgba(220,38,38,.3)',
+                            fontSize: 13.5,
+                            color: C.navy,
+                        }}
+                    >
+                        <AIcon name="triangle-alert" size={18} color={C.red} />
+                        <div>
+                            <div style={{ fontWeight: 600 }}>
+                                Data belum tersimpan — tidak ada karyawan yang
+                                ditambahkan.
+                            </div>
+                            {generalErrors.map((message) => (
+                                <div key={message} style={{ marginTop: 4 }}>
+                                    {message}
+                                </div>
+                            ))}
+                            {rowsWithServerErrors.length > 0 && (
+                                <div style={{ marginTop: 4 }}>
+                                    Perbaiki sel merah di baris{' '}
+                                    {rowsWithServerErrors
+                                        .map((index) => index + 1)
+                                        .join(', ')}
+                                    , lalu simpan lagi.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 <div
                     style={{
