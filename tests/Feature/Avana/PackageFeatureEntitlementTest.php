@@ -261,6 +261,7 @@ it('keeps granting everything when a package scopes no modules', function (): vo
         ])
         ->assertSessionHas('success');
 
+    // Everything but the super-admin-only switches (Alpa Otomatis).
     expect($this->tenant->features()->where('is_enabled', true)->count())
-        ->toBe(Feature::query()->count());
+        ->toBe(Feature::query()->whereNotIn('code', Feature::SUPER_ADMIN_ONLY)->count());
 });

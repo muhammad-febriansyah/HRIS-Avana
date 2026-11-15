@@ -25,13 +25,15 @@ class FeatureController extends Controller
             ? $tenant->features()->pluck('is_enabled', 'feature_id')
             : collect();
 
-        $features = Feature::orderBy('module_group')->orderBy('name')->get()->map(fn (Feature $feature): array => [
-            'id' => $feature->id,
-            'code' => $feature->code,
-            'name' => $feature->name,
-            'module_group' => $feature->module_group,
-            'is_enabled' => (bool) ($enabled[$feature->id] ?? false),
-        ]);
+        $features = Feature::orderBy('module_group')->orderBy('name')
+            ->when(! $this->isSuperAdmin($request), fn ($query) => $query->whereNotIn('code', Feature::SUPER_ADMIN_ONLY))
+            ->get()->map(fn (Feature $feature): array => [
+                'id' => $feature->id,
+                'code' => $feature->code,
+                'name' => $feature->name,
+                'module_group' => $feature->module_group,
+                'is_enabled' => (bool) ($enabled[$feature->id] ?? false),
+            ]);
 
         return Inertia::render('avana/fitur/index', [
             'features' => $features,
@@ -51,12 +53,23 @@ class FeatureController extends Controller
         $tenant = $request->user()->tenant;
         abort_if($tenant === null, 404);
 
+        abort_if(
+            ! $this->isSuperAdmin($request)
+                && in_array(Feature::query()->whereKey($validated['feature_id'])->value('code'), Feature::SUPER_ADMIN_ONLY, true),
+            403,
+        );
+
         $tenant->features()->updateOrCreate(
             ['feature_id' => $validated['feature_id']],
             ['is_enabled' => $validated['enabled']],
         );
 
         return back()->with('success', 'Menu & fitur diperbarui');
+    }
+
+    private function isSuperAdmin(Request $request): bool
+    {
+        return $request->user()->roles()->where('code', 'super_admin')->exists();
     }
 
     private function authorizeAdmin(Request $request): void

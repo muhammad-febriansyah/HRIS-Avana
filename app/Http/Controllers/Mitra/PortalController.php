@@ -248,6 +248,11 @@ class PortalController extends Controller
             'feature_id' => ['required', 'integer', 'exists:features,id'],
         ]);
 
+        abort_if(
+            in_array(Feature::query()->whereKey($validated['feature_id'])->value('code'), Feature::SUPER_ADMIN_ONLY, true),
+            403,
+        );
+
         $feature = $tenant->features()->firstOrNew(['feature_id' => $validated['feature_id']]);
         $feature->is_enabled = ! $feature->is_enabled;
         $feature->save();
@@ -297,6 +302,8 @@ class PortalController extends Controller
     private function featureCatalog(): array
     {
         return Feature::query()
+            // Switched only by the Super Admin, never by a referring partner.
+            ->whereNotIn('code', Feature::SUPER_ADMIN_ONLY)
             ->get(['id', 'code', 'name', 'module_group'])
             ->sortBy(fn (Feature $feature): string => sprintf('%02d-%s', FeatureGroups::sortIndex($feature->module_group), $feature->name))
             ->values()

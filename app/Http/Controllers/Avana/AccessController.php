@@ -954,6 +954,14 @@ class AccessController extends Controller
 
         abort_if($feature === null, 422, 'Menu ini tidak memiliki fitur untuk diaktifkan.');
 
+        // A decision made with the client, switched from the Super Admin's
+        // Klien page — not by the tenant's own admin.
+        abort_if(
+            in_array($feature->code, Feature::SUPER_ADMIN_ONLY, true)
+                && ! $request->user()->roles()->where('code', 'super_admin')->exists(),
+            403,
+        );
+
         $tenant = $request->user()->tenant;
         abort_if($tenant === null, 404);
 

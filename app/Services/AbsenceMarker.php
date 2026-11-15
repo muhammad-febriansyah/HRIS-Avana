@@ -39,6 +39,9 @@ final class AbsenceMarker
      */
     public const CATCH_UP_DAYS = 2;
 
+    /** The Super Admin feature that opts a tenant in to automatic Alpa. */
+    public const FEATURE = 'auto_alpa';
+
     /**
      * Mark every due employee of the tenant who has no attendance row on the
      * date, whatever the hour — a backfill of days already over. Returns how
@@ -50,7 +53,7 @@ final class AbsenceMarker
      */
     public static function markTenant(int $tenantId, CarbonInterface $date): int
     {
-        if (! self::runsAttendance($tenantId)) {
+        if (! self::enabledFor($tenantId)) {
             return 0;
         }
 
@@ -79,7 +82,7 @@ final class AbsenceMarker
      */
     public static function markEnded(int $tenantId, CarbonInterface $now): int
     {
-        if (! self::runsAttendance($tenantId)) {
+        if (! self::enabledFor($tenantId)) {
             return 0;
         }
 
@@ -146,9 +149,18 @@ final class AbsenceMarker
         return Roster::crossesMidnight($shift) ? $end->addDay() : $end;
     }
 
-    private static function runsAttendance(int $tenantId): bool
+    /**
+     * Whether Alpa rows may be written for the tenant: it runs the Attendance
+     * module and the Super Admin switched on its "Alpa Otomatis" feature. An
+     * Alpa docks pay, so a company only gets them once that was agreed with
+     * it — not even a backfill writes one otherwise.
+     */
+    public static function enabledFor(int $tenantId): bool
     {
-        return Tenant::find($tenantId)?->hasFeature('attendance') === true;
+        $tenant = Tenant::find($tenantId);
+
+        return $tenant?->hasFeature('attendance') === true
+            && $tenant->hasFeature(self::FEATURE);
     }
 
     private static function write(int $tenantId, Employee $employee, CarbonInterface $date, ?int $shiftId): void

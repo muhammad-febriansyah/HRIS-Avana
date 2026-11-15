@@ -112,7 +112,11 @@ it('leaves no feature toggle without something to switch', function (): void {
         ->filter()
         ->unique();
 
-    $covered = $ownedByMenu->merge(array_keys(FeatureGate::TAB_FEATURES));
+    // Super-admin-only features switch scheduled behaviour (Alpa Otomatis
+    // lets the marker write Alpa rows), not a screen.
+    $covered = $ownedByMenu
+        ->merge(array_keys(FeatureGate::TAB_FEATURES))
+        ->merge(Feature::SUPER_ADMIN_ONLY);
 
     // Every row in the Kelola Fitur catalogue has to reach a menu leaf of its
     // own or a tab this gate closes — otherwise its switch writes to the

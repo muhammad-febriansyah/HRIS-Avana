@@ -165,7 +165,11 @@ class AttendanceController extends Controller
                 // Shown so the cards always add up to everyone the day expects.
                 'belum_absen' => $notYetIn === null ? null : count($notYetIn),
                 'belum_absen_label' => $focusDate === $today ? 'Belum Absen (hari ini)' : 'Belum Tercatat',
-                'belum_absen_hint' => $focusDate === $today ? 'Jadi Alpa setelah jam pulang' : 'Belum ditandai Alpa',
+                'belum_absen_hint' => match (true) {
+                    ! AbsenceMarker::enabledFor((int) $tenantId) => 'Alpa dicatat manual lewat Koreksi',
+                    $focusDate === $today => 'Jadi Alpa setelah jam pulang',
+                    default => 'Belum ditandai Alpa',
+                },
             ],
             'branches' => Branch::forTenant($tenantId)
                 ->orderBy('name')

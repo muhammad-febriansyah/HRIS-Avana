@@ -59,6 +59,9 @@ function setAttendanceFeature(Tenant $tenant, bool $enabled): void
         ['tenant_id' => $tenant->id, 'feature_id' => $feature->id],
         ['is_enabled' => $enabled],
     );
+
+    // The Super Admin's opt-in to automatic Alpa, on for these tests.
+    setAutoAlpa($tenant->id);
 }
 
 function clearAttendance(Employee $employee, string $date): void
@@ -144,6 +147,19 @@ it('marks a weekend the roster put the employee on', function (): void {
     expect(aliceRowOn($this, $saturday))
         ->status->toBe('absent')
         ->shift_id->toBe($shift->id);
+});
+
+it('marks nobody for a company that has not switched on automatic Alpa', function (): void {
+    setAutoAlpa($this->tenant->id, false);
+
+    expect(AbsenceMarker::markTenant($this->tenant->id, Carbon::parse(ABSENCE_WEDNESDAY)))->toBe(0)
+        ->and(aliceRowOn($this, ABSENCE_WEDNESDAY))->toBeNull();
+
+    $this->travelTo(Carbon::parse('2026-11-12 00:05', TenantTime::zone($this->tenant->id)));
+    expect(AbsenceMarker::markEnded($this->tenant->id, TenantTime::now($this->tenant->id)))->toBe(0);
+
+    actingAs($this->admin)->get('/avana/absensi?date='.ABSENCE_WEDNESDAY)
+        ->assertInertia(fn (Assert $page) => $page->where('kpis.belum_absen_hint', 'Alpa dicatat manual lewat Koreksi'));
 });
 
 it('marks nobody for a tenant that does not run attendance', function (): void {

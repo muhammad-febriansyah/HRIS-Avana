@@ -113,7 +113,8 @@ it('lets a super admin create a tenant and enables every feature by default', fu
     expect($tenant->status)->toBe('trial');
     expect((int) $tenant->max_users)->toBe(25);
 
-    $featureCount = Feature::count();
+    // Every feature except the super-admin-only ones (Alpa Otomatis).
+    $featureCount = Feature::whereNotIn('code', Feature::SUPER_ADMIN_ONLY)->count();
 
     expect($tenant->features()->count())->toBe($featureCount);
     expect($tenant->features()->where('is_enabled', true)->count())->toBe($featureCount);
@@ -547,7 +548,7 @@ it('back-fills features, roles and menu when an admin is added to a bare tenant'
 
     expect(Role::where('tenant_id', $bare->id)->pluck('code')->all())->toBe(['admin_tenant_hr']);
     expect(MenuItem::where('tenant_id', $bare->id)->count())->toBeGreaterThan(0);
-    expect($bare->features()->where('is_enabled', true)->count())->toBe(Feature::count());
+    expect($bare->features()->where('is_enabled', true)->count())->toBe(Feature::whereNotIn('code', Feature::SUPER_ADMIN_ONLY)->count());
 });
 
 it('derives the trial period and quota from the chosen package', function (): void {
@@ -828,4 +829,17 @@ it("leaves a tenant's own edits alone when provisioning runs again", function ()
         ->and((int) $method->divisor)->toBe(20)
         // The ones they never made are still added.
         ->and(DayCalcMethod::forTenant($tenant->id)->count())->toBe(3);
+});
+
+it('leaves Alpa Otomatis off for a newly created tenant', function (): void {
+    $tenant = app(TenantProvisioner::class);
+
+    $fresh = Tenant::create([
+        'name' => 'Klien Baru Alpa', 'slug' => 'klien-baru-alpa', 'status' => 'active',
+    ]);
+
+    (fn () => $this->enableAllFeatures($fresh))->call($tenant);
+
+    expect($fresh->fresh()->hasFeature('auto_alpa'))->toBeFalse()
+        ->and($fresh->fresh()->hasFeature('attendance'))->toBeTrue();
 });

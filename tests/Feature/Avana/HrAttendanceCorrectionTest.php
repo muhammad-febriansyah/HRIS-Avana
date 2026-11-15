@@ -171,6 +171,7 @@ describe('tidak wajib absen', function (): void {
             ['tenant_id' => $this->tenant->id, 'feature_id' => $feature->id],
             ['is_enabled' => true],
         );
+        setAutoAlpa($this->tenant->id);
     });
 
     it('keeps an exempt employee out of the Alpa marker and Belum Absen', function (): void {

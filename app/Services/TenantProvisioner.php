@@ -315,10 +315,12 @@ class TenantProvisioner
     /**
      * Turn on every feature module for the tenant. The sidebar is filtered by
      * these, so a tenant with none sees almost nothing regardless of its roles.
+     * Super-admin-only features (Alpa Otomatis) stay off until agreed with the
+     * client.
      */
     private function enableAllFeatures(Tenant $tenant): void
     {
-        foreach (Feature::query()->pluck('id') as $featureId) {
+        foreach (Feature::query()->whereNotIn('code', Feature::SUPER_ADMIN_ONLY)->pluck('id') as $featureId) {
             $tenant->features()->firstOrCreate(
                 ['feature_id' => $featureId],
                 ['is_enabled' => true],

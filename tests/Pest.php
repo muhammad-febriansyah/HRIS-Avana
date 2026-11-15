@@ -4,6 +4,7 @@ use App\Models\Attendance;
 use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\Feature;
 use App\Models\JobLevel;
 use App\Models\OvertimeRequest;
 use App\Models\Partner;
@@ -12,8 +13,10 @@ use App\Models\PayrollPeriod;
 use App\Models\Position;
 use App\Models\Role;
 use App\Models\SalaryMaster;
+use App\Models\TenantFeature;
 use App\Models\User;
 use App\Models\WorkLocation;
+use App\Services\AbsenceMarker;
 use App\Services\ReferralPartnerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -242,4 +245,21 @@ function seedPresentDays(int $tenantId, Employee $employee, PayrollPeriod $perio
         );
         $date = $date->addDay();
     }
+}
+
+/**
+ * Switch the Super Admin's "Alpa Otomatis" feature for a tenant, so the
+ * absence marker may (or may not) write Alpa rows for it.
+ */
+function setAutoAlpa(int $tenantId, bool $enabled = true): void
+{
+    $feature = Feature::firstOrCreate(
+        ['code' => AbsenceMarker::FEATURE],
+        ['name' => 'Alpa Otomatis', 'module_group' => 'time', 'is_active' => true],
+    );
+
+    TenantFeature::updateOrCreate(
+        ['tenant_id' => $tenantId, 'feature_id' => $feature->id],
+        ['is_enabled' => $enabled],
+    );
 }

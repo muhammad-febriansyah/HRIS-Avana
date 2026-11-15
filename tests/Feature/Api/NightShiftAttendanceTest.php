@@ -257,6 +257,7 @@ it('lands a clock-in after an Alpa on the Alpa row and judges it late', function
         ['tenant_id' => $this->employee->tenant_id, 'feature_id' => Feature::firstOrCreate(['code' => 'attendance'], ['name' => 'Attendance', 'is_active' => true])->id],
         ['is_enabled' => true],
     );
+    setAutoAlpa($this->employee->tenant_id);
 
     // The shift ended with no clock-in: the marker writes Alpa.
     Carbon::setTestNow(Carbon::parse('2026-08-12 09:15:00'));
@@ -315,6 +316,7 @@ describe('a tenant that requires a shift to clock in', function (): void {
             ['tenant_id' => $this->employee->tenant_id],
             ['require_shift_schedule' => true],
         );
+        setAutoAlpa($this->employee->tenant_id);
         Attendance::where('employee_id', $this->employee->id)->whereDate('date', $this->night)->delete();
         ShiftSchedule::where('employee_id', $this->employee->id)->whereDate('date', $this->night)->delete();
     });

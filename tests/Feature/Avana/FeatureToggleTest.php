@@ -75,3 +75,38 @@ it('restores the menu and route when the feature is re-enabled', function (): vo
     expect(navLeafIdsFor($this->admin->fresh()))->toContain('aset');
     actingAs($this->admin)->get(route('avana.aset'))->assertOk();
 });
+
+describe('Alpa Otomatis (super admin only)', function (): void {
+    beforeEach(function (): void {
+        $this->autoAlpa = Feature::where('code', 'auto_alpa')->firstOrFail();
+    });
+
+    it('is not offered to or switchable by a tenant admin', function (): void {
+        actingAs($this->admin)->get('/avana/fitur')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where(
+                'features',
+                fn ($features): bool => collect($features)->doesntContain('code', 'auto_alpa'),
+            ));
+
+        actingAs($this->admin)
+            ->post('/avana/fitur/toggle', ['feature_id' => $this->autoAlpa->id, 'enabled' => true])
+            ->assertForbidden();
+
+        actingAs($this->admin)
+            ->post('/avana/hak-akses/feature/toggle', ['module_key' => 'auto_alpa', 'enabled' => true])
+            ->assertForbidden();
+
+        expect($this->tenant->fresh()->hasFeature('auto_alpa'))->toBeFalse();
+    });
+
+    it('is switched per client by the super admin from the Klien page', function (): void {
+        $superAdmin = User::where('email', 'superadmin@avanahr.id')->firstOrFail();
+
+        actingAs($superAdmin)
+            ->post(route('avana.klien.feature.toggle', $this->tenant), ['feature_id' => $this->autoAlpa->id])
+            ->assertRedirect();
+
+        expect($this->tenant->fresh()->hasFeature('auto_alpa'))->toBeTrue();
+    });
+});
