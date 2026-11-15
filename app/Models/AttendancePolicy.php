@@ -56,6 +56,7 @@ final class AttendancePolicy extends Model
             'block_mock_location' => 'boolean',
             'block_rooted' => 'boolean',
             'block_emulator' => 'boolean',
+            'require_shift_schedule' => 'boolean',
         ];
     }
 
@@ -78,6 +79,7 @@ final class AttendancePolicy extends Model
                 'block_mock_location' => true,
                 'block_rooted' => true,
                 'block_emulator' => true,
+                'require_shift_schedule' => false,
             ],
         );
     }

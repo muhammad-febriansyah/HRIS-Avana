@@ -57,6 +57,7 @@ interface Policy {
     block_mock_location: boolean;
     block_rooted: boolean;
     block_emulator: boolean;
+    require_shift_schedule: boolean;
 }
 
 /** One selectable scope, mirroring `AttendancePolicy::scopeOptions()`. */
@@ -858,6 +859,20 @@ export default function AbsensiKebijakan({
                                             </span>
                                         </label>
                                     ))}
+                                </div>
+
+                                <div style={{ marginTop: 18 }}>
+                                    <Toggle
+                                        on={form.data.require_shift_schedule}
+                                        onChange={(v) =>
+                                            form.setData(
+                                                'require_shift_schedule',
+                                                v,
+                                            )
+                                        }
+                                        label="Wajib ada jadwal shift"
+                                        hint="Karyawan hanya bisa absen pada hari yang punya jadwal shift. Tanpa jadwal, aplikasi menolak absen dengan pesan, dan hari itu dianggap libur (tidak dihitung Belum Absen atau Alpa). Matikan bila perusahaan tidak memakai jadwal shift."
+                                    />
                                 </div>
                             </>
                         )}

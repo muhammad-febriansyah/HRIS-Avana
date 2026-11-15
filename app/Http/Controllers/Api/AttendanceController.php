@@ -86,6 +86,15 @@ class AttendanceController extends Controller
                     $employee->id,
                     Carbon::now($zone)->toDateString(),
                 ),
+                // Set when a clock-in would be refused for want of a shift, so
+                // the app says so before the camera opens instead of after
+                // the face scan.
+                'clock_in_blocked_reason' => $record?->clock_in_at === null
+                    ? $this->noShiftReason(
+                        $employee,
+                        Roster::workDateFor((int) $employee->tenant_id, (int) $employee->id, Carbon::now($zone)),
+                    )
+                    : null,
                 // So the app labels times with the clock they were taken on.
                 'timezone' => $zone,
                 'timezone_label' => TenantTime::shortLabel($zone),
@@ -545,6 +554,10 @@ class AttendanceController extends Controller
             return response()->json(['message' => 'Anda sedang cuti hari ini, tidak perlu absen.'], 422);
         }
 
+        if (($blocked = $this->noShiftReason($employee, $workDate)) !== null) {
+            return response()->json(['message' => $blocked], 422);
+        }
+
         $workMode = $data['work_mode'] ?? 'office';
 
         // Working from home is a claim the WFH approval has to back: without it,
@@ -695,6 +708,29 @@ class AttendanceController extends Controller
      *
      * @return array{status: string, late_minutes: int, shift_id: int|null}
      */
+    /**
+     * Why a clock-in on this work date is refused for want of a shift, or null
+     * when it may go ahead. Only a tenant that switched on "wajib ada jadwal
+     * shift" holds anyone to the roster; everywhere else an unrostered day is
+     * an ordinary office day.
+     */
+    private function noShiftReason(Employee $employee, string $workDate): ?string
+    {
+        if (! AttendancePolicy::resolve($employee->tenant_id)->require_shift_schedule) {
+            return null;
+        }
+
+        $schedule = Roster::scheduleFor((int) $employee->tenant_id, (int) $employee->id, $workDate);
+
+        if ($schedule?->shift !== null) {
+            return null;
+        }
+
+        return $schedule !== null
+            ? 'Hari ini jadwal Anda libur, jadi tidak perlu absen.'
+            : 'Anda belum punya jadwal shift hari ini, jadi belum bisa absen. Hubungi HR atau atasan untuk dibuatkan jadwal.';
+    }
+
     private function lateAgainstShift(Employee $employee, CarbonInterface $clockedAt, ?string $workDate = null): array
     {
         return Roster::evaluateFor($employee, $clockedAt, $workDate);

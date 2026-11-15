@@ -43,6 +43,20 @@ it('persists policy changes', function (): void {
     expect($policy->block_emulator)->toBeFalse();
 });
 
+it('saves the require-a-shift switch', function (): void {
+    actingAs($this->admin)->put('/avana/absensi/kebijakan', [
+        'attendance_scope' => 'assigned',
+        'face_enforcement' => 'block',
+        'integrity_enforcement' => 'block',
+        'require_shift_schedule' => true,
+    ])->assertRedirect();
+
+    expect(AttendancePolicy::where('tenant_id', $this->admin->tenant_id)->value('require_shift_schedule'))->toBeTrue();
+
+    actingAs($this->admin)->get('/avana/absensi/kebijakan')
+        ->assertInertia(fn (Assert $page) => $page->where('policy.require_shift_schedule', true));
+});
+
 it('persists the attendance scope', function (): void {
     actingAs($this->admin)->put('/avana/absensi/kebijakan', [
         'attendance_scope' => 'anywhere',

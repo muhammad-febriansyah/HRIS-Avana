@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\AttendancePolicy;
 use App\Models\CalendarEvent;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
@@ -23,6 +24,8 @@ use Illuminate\Support\Collection;
  * on a public holiday too, since a shift company rosters people through them.
  * With no roster row at all the tenant runs a plain office week: Monday to
  * Friday, minus the holidays on its Kalender.
+ * Unless the tenant switched on "wajib ada jadwal shift": then no roster
+ * row means a day off.
  */
 final class Workday
 {
@@ -69,7 +72,12 @@ final class Workday
             ->get(['employee_id', 'shift_id'])
             ->keyBy(fn (ShiftSchedule $row): int => (int) $row->employee_id);
 
-        $isOfficeDay = ! $date->isWeekend() && ! self::isHoliday($tenantId, $dateString);
+        // A tenant that only lets rostered days clock in has no office week to
+        // fall back on: a day with no roster row is a day off, or its people
+        // would be marked Alpa for a day the app refused to let them clock.
+        $isOfficeDay = ! AttendancePolicy::resolve($tenantId)->require_shift_schedule
+            && ! $date->isWeekend()
+            && ! self::isHoliday($tenantId, $dateString);
 
         return $employees
             ->filter(function (Employee $employee) use ($dateString, $onLeave, $rostered, $isOfficeDay): bool {

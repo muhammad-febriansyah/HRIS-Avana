@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Attendance;
+use App\Models\AttendancePolicy;
 use App\Models\Feature;
 use App\Models\Shift;
 use App\Models\ShiftSchedule;
@@ -306,4 +307,80 @@ it('refuses a double-tapped clock-in right after a night shift clock-out', funct
     ($this->punch)('2026-08-11 14:55:00', 'in')->assertOk();
 
     expect(Attendance::where('employee_id', $this->employee->id)->whereDate('date', '2026-08-11')->value('status'))->toBe('present');
+});
+
+describe('a tenant that requires a shift to clock in', function (): void {
+    beforeEach(function (): void {
+        AttendancePolicy::updateOrCreate(
+            ['tenant_id' => $this->employee->tenant_id],
+            ['require_shift_schedule' => true],
+        );
+        Attendance::where('employee_id', $this->employee->id)->whereDate('date', $this->night)->delete();
+        ShiftSchedule::where('employee_id', $this->employee->id)->whereDate('date', $this->night)->delete();
+    });
+
+    it('refuses a clock-in on a day with no roster row', function (): void {
+        ($this->punch)($this->night.' 08:00:00', 'in')
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Anda belum punya jadwal shift hari ini, jadi belum bisa absen. Hubungi HR atau atasan untuk dibuatkan jadwal.');
+
+        expect(Attendance::where('employee_id', $this->employee->id)->whereDate('date', $this->night)->exists())->toBeFalse();
+    });
+
+    it('refuses a clock-in on a rostered day off', function (): void {
+        ShiftSchedule::create([
+            'tenant_id' => $this->employee->tenant_id,
+            'employee_id' => $this->employee->id,
+            'shift_id' => null,
+            'date' => $this->night,
+        ]);
+
+        ($this->punch)($this->night.' 08:00:00', 'in')
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Hari ini jadwal Anda libur, jadi tidak perlu absen.');
+    });
+
+    it('lets a rostered employee clock in', function (): void {
+        ($this->rosterNight)();
+
+        ($this->punch)($this->night.' 22:02:00', 'in')->assertOk();
+    });
+
+    it('tells the app before the scan that today has no shift', function (): void {
+        Carbon::setTestNow(Carbon::parse($this->night.' 08:00:00'));
+
+        ($this->auth)()->getJson('/api/v1/me/attendance/today')
+            ->assertOk()
+            ->assertJsonPath('requirements.clock_in_blocked_reason', 'Anda belum punya jadwal shift hari ini, jadi belum bisa absen. Hubungi HR atau atasan untuk dibuatkan jadwal.');
+
+        ($this->rosterNight)();
+
+        ($this->auth)()->getJson('/api/v1/me/attendance/today')
+            ->assertOk()
+            ->assertJsonPath('requirements.clock_in_blocked_reason', null);
+    });
+
+    it('does not mark an unrostered weekday Alpa', function (): void {
+        Feature::firstOrCreate(['code' => 'attendance'], ['name' => 'Attendance', 'is_active' => true]);
+        TenantFeature::updateOrCreate(
+            ['tenant_id' => $this->employee->tenant_id, 'feature_id' => Feature::where('code', 'attendance')->value('id')],
+            ['is_enabled' => true],
+        );
+
+        AbsenceMarker::markTenant($this->employee->tenant_id, Carbon::parse($this->night));
+
+        expect(Attendance::where('employee_id', $this->employee->id)->whereDate('date', $this->night)->exists())->toBeFalse();
+
+        // The same weekday is an Alpa once the tenant drops the requirement.
+        AttendancePolicy::where('tenant_id', $this->employee->tenant_id)->update(['require_shift_schedule' => false]);
+        AbsenceMarker::markTenant($this->employee->tenant_id, Carbon::parse($this->night));
+
+        expect(Attendance::where('employee_id', $this->employee->id)->whereDate('date', $this->night)->value('status'))->toBe('absent');
+    });
+});
+
+it('still lets an unrostered employee clock in when the tenant does not require a shift', function (): void {
+    Attendance::where('employee_id', $this->employee->id)->whereDate('date', $this->night)->delete();
+
+    ($this->punch)($this->night.' 08:00:00', 'in')->assertOk();
 });

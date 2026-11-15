@@ -45,6 +45,7 @@ class AttendancePolicyController extends Controller
                 'block_mock_location' => (bool) $policy->block_mock_location,
                 'block_rooted' => (bool) $policy->block_rooted,
                 'block_emulator' => (bool) $policy->block_emulator,
+                'require_shift_schedule' => (bool) $policy->require_shift_schedule,
             ],
             'attestationEnabled' => DeviceIntegrity::attestationEnabled(),
             'scopeOptions' => AttendancePolicy::scopeOptions(),
@@ -263,6 +264,7 @@ class AttendancePolicyController extends Controller
             'block_mock_location' => ['boolean'],
             'block_rooted' => ['boolean'],
             'block_emulator' => ['boolean'],
+            'require_shift_schedule' => ['boolean'],
         ]);
 
         AttendancePolicy::updateOrCreate(
