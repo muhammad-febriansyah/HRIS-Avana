@@ -43,6 +43,9 @@ class AttendanceController extends Controller
     /** How long a clock-in stays "today's" when it is still unclosed. */
     private const OPEN_SHIFT_WINDOW_HOURS = 16;
 
+    /** A clock-in this soon after a clock-out is a double tap, not a new day. */
+    private const CLOCK_IN_AFTER_OUT_GAP_MINUTES = 30;
+
     public function __construct(
         private readonly FaceScanLogger $scanLogger,
         private readonly FaceRecognitionService $faceRecognition,
@@ -515,6 +518,24 @@ class AttendanceController extends Controller
 
         if ($attendance->clock_in_at !== null) {
             return response()->json(['message' => 'Anda sudah clock-in hari ini.'], 422);
+        }
+
+        // A second tap right after clocking out of a night shift lands past the
+        // shift end, so it reads as the next day's clock-in — and then the real
+        // arrival that afternoon is refused as "sudah clock-in". Nobody starts
+        // a new day minutes after ending the last one.
+        $recentClockOut = Attendance::query()
+            ->where('tenant_id', $employee->tenant_id)
+            ->where('employee_id', $employee->id)
+            ->whereBetween('clock_out_at', [$clockedAt->copy()->subMinutes(self::CLOCK_IN_AFTER_OUT_GAP_MINUTES), $clockedAt])
+            ->latest('clock_out_at')
+            ->value('clock_out_at');
+
+        if ($recentClockOut !== null) {
+            return response()->json([
+                'message' => 'Anda baru saja clock-out pukul '.Carbon::parse($recentClockOut)->setTimezone($clockedAt->getTimezone())->format('H:i')
+                    .'. Absen masuk berikutnya dilakukan saat shift berikutnya dimulai.',
+            ], 422);
         }
 
         // An approved leave owns the day — refuse the clock-in rather than let a

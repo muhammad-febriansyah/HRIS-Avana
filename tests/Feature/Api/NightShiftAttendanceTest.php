@@ -271,3 +271,39 @@ it('lands a clock-in after an Alpa on the Alpa row and judges it late', function
         ->and($rows->first()->status)->toBe('late')
         ->and($rows->first()->clock_in_at)->not->toBeNull();
 });
+
+it('refuses a double-tapped clock-in right after a night shift clock-out', function (): void {
+    $siang = Shift::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'code' => 'SIANG-T', 'name' => 'Siang Sales',
+        'start_time' => '15:00:00', 'end_time' => '01:00:00',
+        'late_tolerance_minutes' => 10, 'status' => 'active',
+    ]);
+
+    foreach ([$this->night, '2026-08-11'] as $date) {
+        ShiftSchedule::create([
+            'tenant_id' => $this->employee->tenant_id,
+            'employee_id' => $this->employee->id,
+            'shift_id' => $siang->id,
+            'date' => $date,
+        ]);
+    }
+    Attendance::where('employee_id', $this->employee->id)
+        ->whereDate('date', '>=', $this->night)
+        ->delete();
+
+    ($this->punch)($this->night.' 14:54:00', 'in')->assertOk();
+    ($this->punch)('2026-08-11 01:00:53', 'out')->assertOk();
+
+    // The same button pressed again ten seconds later.
+    ($this->punch)('2026-08-11 01:01:03', 'in')
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Anda baru saja clock-out pukul 01:00. Absen masuk berikutnya dilakukan saat shift berikutnya dimulai.');
+
+    expect(Attendance::where('employee_id', $this->employee->id)->whereDate('date', '2026-08-11')->exists())->toBeFalse();
+
+    // The real arrival for that afternoon's shift still goes through.
+    ($this->punch)('2026-08-11 14:55:00', 'in')->assertOk();
+
+    expect(Attendance::where('employee_id', $this->employee->id)->whereDate('date', '2026-08-11')->value('status'))->toBe('present');
+});
