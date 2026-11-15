@@ -46,6 +46,13 @@ class AttendanceController extends Controller
     /** A clock-in this soon after a clock-out is a double tap, not a new day. */
     private const CLOCK_IN_AFTER_OUT_GAP_MINUTES = 30;
 
+    /**
+     * How long before a rostered shift starts its day takes over: from then on
+     * a forgotten clock-out from an earlier shift is left as it is (the day
+     * still counts, with only a clock-in) instead of being offered again.
+     */
+    private const SHIFT_TAKEOVER_HOURS = 3;
+
     public function __construct(
         private readonly FaceScanLogger $scanLogger,
         private readonly FaceRecognitionService $faceRecognition,
@@ -737,6 +744,25 @@ class AttendanceController extends Controller
     }
 
     /**
+     * Whether the shift rostered for the work date at $now starts within
+     * SHIFT_TAKEOVER_HOURS (or already has). An unrostered day has no start to
+     * go by, so it never takes over.
+     */
+    private function todaysShiftTakesOver(int $tenantId, int $employeeId, CarbonInterface $now): bool
+    {
+        $workDate = Roster::workDateFor($tenantId, $employeeId, $now);
+        $shift = Roster::shiftFor($tenantId, $employeeId, $workDate);
+
+        if ($shift === null || $shift->start_time === null) {
+            return false;
+        }
+
+        $start = Carbon::parse($workDate, $now->getTimezone())->setTimeFromTimeString((string) $shift->start_time);
+
+        return $now->greaterThanOrEqualTo($start->subHours(self::SHIFT_TAKEOVER_HOURS));
+    }
+
+    /**
      * The shift this clock-out closes.
      *
      * The roster day is tried first, which is the punch's own date on a normal
@@ -756,6 +782,12 @@ class AttendanceController extends Controller
 
         if ($onWorkDate !== null) {
             return $onWorkDate;
+        }
+
+        // A forgotten clock-out stays forgotten once today.s shift is near:
+        // closing it now would book a whole night as worked time.
+        if ($this->todaysShiftTakesOver((int) $employee->tenant_id, (int) $employee->id, $clockedAt)) {
+            return null;
         }
 
         return Attendance::forTenant($employee->tenant_id)
@@ -948,6 +980,12 @@ class AttendanceController extends Controller
         // exist yet — while the clock-in from this afternoon is still open.
         // Showing "clock in" then would strand the worker, so a punch-in from
         // the last few hours that has not been closed is still today's.
+        // Unless today.s own shift is about to start: the open punch is then
+        // a forgotten clock-out, and today needs a clock-in, not that.
+        if ($this->todaysShiftTakesOver($tenantId, $employeeId, $now)) {
+            return null;
+        }
+
         return Attendance::forTenant($tenantId)
             ->where('employee_id', $employeeId)
             ->whereNotNull('clock_in_at')

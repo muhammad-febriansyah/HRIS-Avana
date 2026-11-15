@@ -384,3 +384,45 @@ it('still lets an unrostered employee clock in when the tenant does not require 
 
     ($this->punch)($this->night.' 08:00:00', 'in')->assertOk();
 });
+
+it('leaves a forgotten clock-out behind once the next rostered shift is near', function (): void {
+    $pagi = Shift::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'code' => 'PAGI-T', 'name' => 'Shift Pagi',
+        'start_time' => '07:00:00', 'end_time' => '17:00:00',
+        'late_tolerance_minutes' => 10, 'status' => 'active',
+    ]);
+    ($this->rosterNight)();
+    ShiftSchedule::create([
+        'tenant_id' => $this->employee->tenant_id,
+        'employee_id' => $this->employee->id,
+        'shift_id' => $pagi->id,
+        'date' => '2026-08-11',
+    ]);
+    Attendance::where('employee_id', $this->employee->id)->whereDate('date', '>=', $this->night)->delete();
+
+    // Clocked in for the night shift and never clocked out.
+    ($this->punch)($this->night.' 22:02:00', 'in')->assertOk();
+
+    // Still inside the night shift: the open day is offered for clock-out.
+    Carbon::setTestNow(Carbon::parse('2026-08-11 05:00:00'));
+    ($this->auth)()->getJson('/api/v1/me/attendance/today')
+        ->assertJsonPath('data.next_action', 'out');
+
+    // The morning shift is near: today asks for a clock-in, not last night's out.
+    Carbon::setTestNow(Carbon::parse('2026-08-11 06:30:00'));
+    ($this->auth)()->getJson('/api/v1/me/attendance/today')
+        ->assertJsonPath('data.next_action', 'in');
+
+    // An old app that still taps "out" must not book the whole night as work.
+    ($this->punch)('2026-08-11 06:30:00', 'out')->assertStatus(422);
+
+    ($this->punch)('2026-08-11 06:45:00', 'in')->assertOk();
+
+    $night = Attendance::where('employee_id', $this->employee->id)->whereDate('date', $this->night)->firstOrFail();
+
+    // The forgotten day still counts as attended, with only its clock-in.
+    expect($night->clock_out_at)->toBeNull()
+        ->and($night->status)->toBe('present')
+        ->and(Attendance::where('employee_id', $this->employee->id)->whereDate('date', '2026-08-11')->value('status'))->toBe('present');
+});
