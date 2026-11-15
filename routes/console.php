@@ -29,6 +29,13 @@ Schedule::command('avana:scan-attrition-alerts')->dailyAt('07:30');
 // them at half past ten.
 Schedule::command('avana:remind-attendance')->hourlyAt(30);
 
+// Still clocked in half an hour after the shift ended: one push to clock out,
+// so the day keeps its worked hours instead of only a clock-in.
+Schedule::command('avana:remind-clock-out')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping()
+    ->onOneServer();
+
 // Anyone the roster (or the office week) expected whose shift has ended
 // without a clock-in gets an Alpa row, so the rekap, the reports and payroll
 // see the missed day the same day. Every quarter hour so a shift that ends at
