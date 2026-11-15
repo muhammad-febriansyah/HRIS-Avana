@@ -65,8 +65,12 @@ class ActivityController extends Controller
         /** @var Collection<int, array<string, mixed>> $items */
         $items = collect();
 
+        // Clock-ins, plus the Alpa days: an Alpa row has no clock-in by
+        // definition, so filtering on clock_in_at alone hid every missed day
+        // from the employee's own history. Leave days stay out — they already
+        // show as the leave request below.
         $attendances = Attendance::forTenant($tenantId)->where('employee_id', $employeeId)
-            ->whereNotNull('clock_in_at')
+            ->where(fn ($q) => $q->whereNotNull('clock_in_at')->orWhere('status', 'absent'))
             ->tap(fn ($q) => $within($q, 'date'))
             ->orderByDesc('date')->limit($perSource)->get();
 
@@ -90,7 +94,9 @@ class ActivityController extends Controller
             $items->push($this->shape(
                 'attendance',
                 'Absensi',
-                'Masuk '.($in ?? '--:--').' · Pulang '.($out ?? '--:--'),
+                $a->status === 'absent' && $in === null
+                    ? 'Alpa — tidak ada absen masuk'
+                    : 'Masuk '.($in ?? '--:--').' · Pulang '.($out ?? '--:--'),
                 $a->status,
                 $a->clock_in_at ?? $a->date,
                 detail: [

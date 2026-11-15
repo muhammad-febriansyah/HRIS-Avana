@@ -887,6 +887,36 @@ it('filters the activity feed by the requested date range', function (): void {
         ->every(fn (string $at): bool => str_starts_with($at, '2025-03')))->toBeTrue();
 });
 
+it('lists an Alpa day in the employee activity feed', function (): void {
+    $employee = User::where('email', 'bagus.p@nusantara.co.id')->firstOrFail()->employee;
+    Attendance::where('employee_id', $employee->id)->whereIn('date', ['2025-03-12', '2025-03-13'])->delete();
+    Attendance::create([
+        'tenant_id' => $employee->tenant_id,
+        'employee_id' => $employee->id,
+        'date' => '2025-03-12',
+        'status' => 'absent',
+    ]);
+    // An approved leave writes a row without a clock-in too; it already shows
+    // as the leave request, so it must not appear twice.
+    Attendance::create([
+        'tenant_id' => $employee->tenant_id,
+        'employee_id' => $employee->id,
+        'date' => '2025-03-13',
+        'status' => 'leave',
+    ]);
+
+    $res = ($this->auth)()
+        ->getJson('/api/v1/me/activities?from=2025-03-12&to=2025-03-13')
+        ->assertOk();
+
+    $attendances = collect($res->json('data'))->where('type', 'attendance')->values();
+
+    expect($attendances)->toHaveCount(1)
+        ->and($attendances[0]['status'])->toBe('absent')
+        ->and($attendances[0]['subtitle'])->toBe('Alpa — tidak ada absen masuk')
+        ->and($attendances[0]['detail']['date'])->toBe('2025-03-12');
+});
+
 it('returns the employee work locations for geofence auto-detect', function (): void {
     ($this->auth)()->getJson('/api/v1/me/work-locations')
         ->assertOk()
