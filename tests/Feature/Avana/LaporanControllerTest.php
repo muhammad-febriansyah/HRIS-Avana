@@ -1,12 +1,18 @@
 <?php
 
 use App\Http\Controllers\Avana\LaporanController;
+use App\Models\Attendance;
+use App\Models\AttendanceCorrection;
+use App\Models\Employee;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use Database\Seeders\AvanaDemoSeeder;
 use Illuminate\Support\Facades\Route;
 use Inertia\Testing\AssertableInertia as Assert;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 use function Pest\Laravel\actingAs;
 
@@ -107,4 +113,55 @@ it('forbids users without report access from the laporan index', function (): vo
     actingAs($staff)
         ->get('spec-avana/laporan')
         ->assertForbidden();
+});
+
+it('exports the Absensi rekap as a readable workbook with letterhead, text ids and HR notes', function (): void {
+    $employee = Employee::forTenant($this->tenant->id)->where('status', 'active')->orderBy('id')->firstOrFail();
+    $employee->update(['employee_number' => '1111111111111111']);
+    Attendance::where('employee_id', $employee->id)->whereDate('date', '2026-08-12')->delete();
+
+    $attendance = Attendance::create([
+        'tenant_id' => $this->tenant->id,
+        'employee_id' => $employee->id,
+        'date' => '2026-08-12',
+        'clock_in_at' => '2026-08-12 01:01:00',
+        'status' => 'leave',
+    ]);
+    AttendanceCorrection::create([
+        'tenant_id' => $this->tenant->id,
+        'attendance_id' => $attendance->id,
+        'employee_id' => $employee->id,
+        'date' => '2026-08-12',
+        'correction_type' => 'hr_leave',
+        'reason' => 'Sakit, absen kepencet 2 kali',
+        'status' => 'approved',
+    ]);
+
+    $response = actingAs($this->admin)
+        ->get('spec-avana/laporan/export/absensi?format=xlsx&date_from=2026-08-12&date_to=2026-08-12')
+        ->assertOk()
+        ->assertDownload('rekap-absensi-'.now()->format('Y-m-d').'.xlsx');
+
+    $sheet = IOFactory::load($response->baseResponse->getFile()->getPathname())->getActiveSheet();
+
+    expect($sheet->getTitle())->toBe('Rekap Absensi')
+        ->and($sheet->getCell('A2')->getValue())->toBe('Rekap Absensi Karyawan')
+        ->and((string) $sheet->getCell('A3')->getValue())->toContain('Periode: 12 Agustus 2026')
+        ->and((string) $sheet->getCell('A4')->getValue())->toContain('Cuti 1')
+        ->and($sheet->getCell('A6')->getValue())->toBe('No')
+        ->and($sheet->getCell('K6')->getValue())->toBe('Keterangan')
+        ->and($sheet->getFreezePane())->toBe('C7');
+
+    $row = collect(range(7, $sheet->getHighestRow()))
+        ->first(fn (int $r): bool => $sheet->getCell("C{$r}")->getValue() === $employee->full_name);
+
+    expect($row)->not->toBeNull()
+        // A 16-digit employee number keeps every digit, as text.
+        ->and($sheet->getCell("D{$row}")->getValue())->toBe('1111111111111111')
+        ->and($sheet->getCell("D{$row}")->getDataType())->toBe(DataType::TYPE_STRING)
+        // A real date Excel can sort.
+        ->and(Date::isDateTime($sheet->getCell("B{$row}")))->toBeTrue()
+        ->and($sheet->getCell("J{$row}")->getValue())->toBe('Cuti')
+        ->and($sheet->getStyle("J{$row}")->getFill()->getStartColor()->getRGB())->toBe('DBEAFE')
+        ->and($sheet->getCell("K{$row}")->getValue())->toBe('Koreksi HR: Sakit, absen kepencet 2 kali');
 });

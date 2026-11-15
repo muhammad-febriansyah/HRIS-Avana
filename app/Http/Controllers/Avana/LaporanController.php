@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Avana;
 
+use App\Exports\AttendanceRecapExport;
 use App\Exports\ReportExport;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Employee;
 use App\Models\EmployeeBpjsProfile;
 use App\Models\LeaveRequest;
@@ -22,6 +24,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -199,6 +202,10 @@ class LaporanController extends Controller
         }
 
         if ($format === 'xlsx') {
+            if ($type === 'absensi') {
+                return Excel::download($this->attendanceRecapWorkbook($request, $rows, $range), 'rekap-absensi-'.Carbon::today()->format('Y-m-d').'.xlsx');
+            }
+
             return Excel::download(new ReportExport($rows, $header, $this->reportTitle($type)), $base.'.xlsx');
         }
 
@@ -209,6 +216,34 @@ class LaporanController extends Controller
             'rows' => $rows,
             'generatedAt' => Carbon::now()->format('d M Y H:i'),
         ])->setPaper('a4', 'landscape')->download($base.'.pdf');
+    }
+
+    /**
+     * The Absensi "Export Rekap" workbook: letterhead, period, summary and the
+     * coloured table, rather than the plain sheet the other reports use.
+     *
+     * @param  array<int, array<int, string|int|null>>  $rows
+     * @param  array{0: string, 1: string}|null  $range
+     */
+    private function attendanceRecapWorkbook(Request $request, array $rows, ?array $range): AttendanceRecapExport
+    {
+        $tenantId = (int) $request->user()->tenant_id;
+        $company = Company::forTenant($tenantId)->first();
+        $logo = $company?->logo_path;
+
+        $period = $range === null
+            ? 'Semua tanggal'
+            : ($range[0] === $range[1]
+                ? Carbon::parse($range[0])->translatedFormat('j F Y')
+                : Carbon::parse($range[0])->translatedFormat('j M Y').' – '.Carbon::parse($range[1])->translatedFormat('j M Y'));
+
+        return new AttendanceRecapExport(
+            $rows,
+            $company?->name ?? Tenant::find($tenantId)?->name ?? 'Perusahaan',
+            $period,
+            (string) $request->user()->name,
+            $logo !== null && Storage::disk('public')->exists($logo) ? Storage::disk('public')->path($logo) : null,
+        );
     }
 
     /**
@@ -338,11 +373,16 @@ class LaporanController extends Controller
      */
     private function absensiReport(int $tenantId): array
     {
-        $header = ['Tanggal', 'Nama', 'No. Karyawan', 'Cabang', 'Shift', 'Masuk', 'Keluar', 'Telat (menit)', 'Status'];
+        $header = ['Tanggal', 'Nama', 'No. Karyawan', 'Cabang', 'Shift', 'Masuk', 'Keluar', 'Telat (menit)', 'Status', 'Keterangan'];
 
         $query = Attendance::query()
             ->forTenant($tenantId)
-            ->with(['employee:id,full_name,employee_number,branch_id', 'employee.branch:id,name', 'shift:id,name'])
+            ->with([
+                'employee:id,full_name,employee_number,branch_id',
+                'employee.branch:id,name',
+                'shift:id,name',
+                'corrections' => fn ($query) => $query->where('status', 'approved')->latest('id'),
+            ])
             ->orderByDesc('date')
             ->orderBy('id');
 
@@ -356,6 +396,7 @@ class LaporanController extends Controller
             $attendance->clock_out_at?->format('H:i'),
             (int) $attendance->late_minutes,
             $this->attendanceLabel($attendance->status),
+            $this->attendanceNote($attendance),
         ];
 
         return [$header, $query, $mapper];
@@ -390,6 +431,7 @@ class LaporanController extends Controller
                     null,
                     0,
                     $label,
+                    null,
                 ];
             }
         }
@@ -666,6 +708,26 @@ class LaporanController extends Controller
             'inactive' => 'Nonaktif',
             default => (string) $status,
         };
+    }
+
+    /**
+     * Why a day reads the way it does, when someone changed it by hand: HR's
+     * own correction from the rekap, or an employee's approved request. A
+     * "Cuti" that came from HR rather than a leave request says so here.
+     */
+    private function attendanceNote(Attendance $attendance): ?string
+    {
+        $correction = $attendance->corrections->first();
+
+        if ($correction === null) {
+            return null;
+        }
+
+        $prefix = str_starts_with((string) $correction->correction_type, 'hr_')
+            ? 'Koreksi HR'
+            : 'Koreksi karyawan disetujui';
+
+        return filled($correction->reason) ? $prefix.': '.$correction->reason : $prefix;
     }
 
     /**

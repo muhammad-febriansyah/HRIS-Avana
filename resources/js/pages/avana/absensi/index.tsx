@@ -337,7 +337,7 @@ export default function AvanaAbsensi({
                             Hari ini
                         </button>
                         <a
-                            href={`/avana/laporan/export/absensi?date_from=${filters.date_from}&date_to=${filters.date_to}`}
+                            href={`/avana/laporan/export/absensi?format=xlsx&date_from=${filters.date_from}&date_to=${filters.date_to}`}
                             style={{ ...btnOut, textDecoration: 'none' }}
                         >
                             <AIcon name="download" size={16} />

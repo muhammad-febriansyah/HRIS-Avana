@@ -71,6 +71,15 @@ final class Attendance extends Model
         return $this->hasMany(AttendanceSelfie::class);
     }
 
+    /**
+     * Corrections filed against this day — an employee's request or HR's own
+     * fix from the rekap.
+     */
+    public function corrections(): HasMany
+    {
+        return $this->hasMany(AttendanceCorrection::class);
+    }
+
     public function trackingSession(): HasOne
     {
         return $this->hasOne(TrackingSession::class);
