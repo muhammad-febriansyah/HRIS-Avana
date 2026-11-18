@@ -31,7 +31,7 @@ const FEATURES = [
     },
 ];
 
-/** Free-trial promo banner — 3-month trial, same claim as the navbar's top bar. */
+/** Free-trial promo banner — same claim as the navbar's top bar. */
 export function FreeTrialBanner() {
     const { trial, trialExternal } = useCtaTargets();
 
@@ -61,8 +61,8 @@ export function FreeTrialBanner() {
 
                             <h2 className="mb-4 text-3xl leading-tight font-extrabold lg:text-4xl">
                                 Hai, Coba Gratis{' '}
-                                <br className="hidden lg:block" />3 Bulan
-                                Pertama!
+                                <br className="hidden lg:block" />
+                                Sekarang!
                             </h2>
 
                             <p className="mx-auto mb-8 max-w-sm text-sm leading-relaxed text-blue-50 opacity-90 md:text-base lg:mx-0">

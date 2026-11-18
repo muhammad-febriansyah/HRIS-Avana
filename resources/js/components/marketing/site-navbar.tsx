@@ -159,7 +159,7 @@ export function SiteNavbar({
                             Berhenti buang waktu rekap manual! Transformasi HR
                             Anda sekarang &amp; nikmati{' '}
                             <strong className="text-white">
-                                Gratis Ujicoba 3 Bulan
+                                Gratis Ujicoba
                             </strong>
                             .
                         </p>

@@ -2696,7 +2696,7 @@ export default function Feature({
                                             variant="primary"
                                             className="w-full sm:w-auto"
                                         >
-                                            Coba Gratis 3 Bulan
+                                            Coba Gratis
                                         </TrialButton>
                                         <DemoButton
                                             variant="secondary"
